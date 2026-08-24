@@ -1062,6 +1062,20 @@ button { font: inherit; }
 .device-card > footer code { color: #47adb6; }
 .device-card > footer > button { min-height: 35px; padding: 0 13px; color: var(--portal-muted); background: var(--portal-surface-2); border: 1px solid var(--portal-line); cursor: pointer; font: 700 7px var(--font-geist-mono); text-transform: uppercase; }
 
+.form-card { height: min(760px, 94vh); }
+.device-side-layout { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(390px, .9fr); gap: 14px; padding: 14px; overflow: hidden; }
+.device-side-layout > .device-location-map,
+.device-manager-body > .device-location-map { height: auto; min-height: 0; }
+.device-editor-panel { min-height: 0; padding: 14px; overflow-y: auto; background: var(--portal-surface); border: 1px solid var(--portal-line); scrollbar-width: thin; }
+.device-editor-panel .device-fields { grid-template-columns: 1fr 1fr; }
+.device-editor-panel > header { min-height: 46px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: -14px -14px 14px; padding: 10px 12px; background: var(--portal-surface-2); border-bottom: 1px solid var(--portal-line); }
+.device-editor-panel > header span { color: #36a7b0; font: 750 6px var(--font-geist-mono); letter-spacing: .08em; }
+.device-editor-panel > header h3 { margin: 4px 0 0; color: var(--portal-text); font-size: 10px; }
+.device-editor-panel > header button { min-height: 28px; display: flex; align-items: center; gap: 5px; padding: 0 8px; color: var(--portal-muted); background: var(--portal-surface); border: 1px solid var(--portal-line); cursor: pointer; font: 700 6px var(--font-geist-mono); text-transform: uppercase; }
+.device-editor-panel > footer { position: sticky; bottom: -14px; display: grid; grid-template-columns: 1fr 1.25fr; gap: 7px; margin: 14px -14px -14px; padding: 11px 14px; background: var(--portal-surface); border-top: 1px solid var(--portal-line); }
+.device-editor-panel > footer button { min-height: 34px; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--portal-muted); background: var(--portal-surface-2); border: 1px solid var(--portal-line); cursor: pointer; font: 700 7px var(--font-geist-mono); text-transform: uppercase; }
+.registry-inline-form { min-height: 0; overflow: hidden; }
+.registry-inline-form .device-editor-panel { height: 100%; }
 .registry-card { height: min(760px, 94vh); }
 .device-manager-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(310px, .8fr); gap: 14px; padding: 14px; overflow: hidden; }
 .device-registry-map { position: relative; min-height: 0; overflow: hidden; background: #172029; border: 1px solid var(--portal-line); }
@@ -1104,6 +1118,7 @@ button { font: inherit; }
   .district-risk { grid-row: auto; }
   .settings-layout { grid-template-columns: 1fr; }
   .device-manager-body { grid-template-columns: minmax(0, 1fr) 300px; }
+  .device-side-layout { grid-template-columns: minmax(0, 1fr) 360px; }
 }
 
 @media (max-width: 700px) {
@@ -1118,7 +1133,11 @@ button { font: inherit; }
   .thresholds > div { border-bottom: 1px solid var(--portal-line); }
   .device-fields { grid-template-columns: 1fr 1fr; }
   .device-card > footer > span { display: none; }
+  .device-side-layout,
   .device-manager-body { grid-template-columns: 1fr; overflow-y: auto; }
+  .device-side-layout > .device-location-map,
+  .device-manager-body > .device-location-map { min-height: 360px; }
   .device-registry-map { min-height: 360px; }
   .device-manager-panel { min-height: 420px; }
+  .registry-inline-form { min-height: 520px; }
 }
