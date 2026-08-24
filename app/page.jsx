@@ -204,7 +204,7 @@ function AlertRail({ states, onAcknowledge, onLocate }) {
 
 export default function Home() {
   const [filter, setFilter] = useState('All');
-  const [selectedNode, setSelectedNode] = useState(delhiNodes[0]);
+  const [selectedNode, setSelectedNode] = useState(null);
   const [acknowledged, setAcknowledged] = useState({});
 
   const locateNode = (nodeId) => {
@@ -218,7 +218,7 @@ export default function Home() {
       <section className="map-canvas" aria-label="Delhi command centre map">
         <HazardMap nodes={delhiNodes} filter={filter} selectedNode={selectedNode} onSelect={setSelectedNode} />
         <div className="map-identity"><div className="delhi-seal"><ShieldCheck size={18} /></div><div><span>KAVACH · DELHI</span><h1>Command Centre</h1></div></div>
-        <div className="map-status"><span><i />128 sensors online</span><b>24 AUG · 14:32 IST</b></div>
+        <div className="map-status"><span><i />08 nodes deployed</span><b>10 DISTRICTS</b><b>06 ACTIVE ALERTS</b><b>24 AUG · 14:32 IST</b></div>
         <div className="map-filters" role="group" aria-label="Filter map hazards">
           {['All', 'Flood', 'Air Quality', 'Heat'].map((item) => <button key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}</button>)}
         </div>
