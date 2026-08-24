@@ -1068,6 +1068,14 @@ button { font: inherit; }
 .device-side-layout > .device-location-map,
 .device-manager-body > .device-location-map { height: auto; min-height: 0; }
 .device-editor-panel { min-height: 0; padding: 14px; overflow-y: auto; overscroll-behavior: contain; background: var(--portal-surface); border: 1px solid var(--portal-line); scrollbar-width: thin; scrollbar-gutter: stable; }
+.auto-identity-preview { display: grid; grid-template-columns: 34px minmax(110px, .8fr) minmax(180px, 1.4fr); align-items: center; gap: 9px 11px; margin-bottom: 13px; padding: 10px; background: var(--portal-surface-2); border: 1px solid #32737a; box-shadow: inset 2px 0 #4ebac3; }
+.auto-identity-preview > i { grid-row: 1 / span 2; width: 32px; height: 32px; display: grid; place-items: center; color: #4ebac3; background: var(--portal-surface); border: 1px solid var(--portal-line); font-style: normal; }
+.auto-identity-preview div { min-width: 0; }
+.auto-identity-preview span,
+.auto-identity-preview b { display: block; }
+.auto-identity-preview span { color: #36a7b0; font: 750 6px var(--font-geist-mono); letter-spacing: .08em; }
+.auto-identity-preview b { margin-top: 4px; overflow: hidden; color: var(--portal-text); font: 700 8px var(--font-geist-mono); white-space: nowrap; text-overflow: ellipsis; }
+.auto-identity-preview > small { grid-column: 2 / -1; color: var(--portal-muted); font: 600 6px var(--font-geist-mono); }
 .device-editor-panel .device-fields { grid-template-columns: 1fr 1fr; }
 .device-editor-panel > header { min-height: 46px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: -14px -14px 14px; padding: 10px 12px; background: var(--portal-surface-2); border-bottom: 1px solid var(--portal-line); }
 .device-editor-panel > header span { color: #36a7b0; font: 750 6px var(--font-geist-mono); letter-spacing: .08em; }

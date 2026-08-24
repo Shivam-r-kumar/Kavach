@@ -254,8 +254,65 @@ const hazardSensorPresets = {
   'Water Quality': ['Water level', 'pH', 'Turbidity', 'Conductivity', 'H2S', 'NH3'],
 };
 
+const delhiZones = [
+  ['ZONE-1', 'Zone 1 · North / North-West'],
+  ['ZONE-2', 'Zone 2 · West / South-West'],
+  ['ZONE-3', 'Zone 3 · Central Delhi'],
+  ['ZONE-4', 'Zone 4 · East / North-East'],
+  ['ZONE-5', 'Zone 5 · South / South-West'],
+  ['ZONE-6', 'Zone 6 · South-East'],
+];
+
+const delhiAreaAnchors = [
+  ['Narela', 'North Delhi', 28.8527, 77.0929], ['Bawana', 'North West Delhi', 28.7982, 77.0349],
+  ['Alipur', 'North Delhi', 28.7973, 77.1324], ['Rohini', 'North West Delhi', 28.7041, 77.1025],
+  ['Model Town', 'North Delhi', 28.7150, 77.1918], ['Wazirabad', 'North Delhi', 28.7083, 77.2300],
+  ['Mundka', 'West Delhi', 28.6821, 77.0301], ['Punjabi Bagh', 'West Delhi', 28.6689, 77.1290],
+  ['Janakpuri', 'West Delhi', 28.6219, 77.0878], ['Najafgarh', 'South West Delhi', 28.6090, 76.9855],
+  ['Dwarka', 'South West Delhi', 28.5921, 77.0460], ['Connaught Place', 'New Delhi', 28.6315, 77.2167],
+  ['Karol Bagh', 'Central Delhi', 28.6519, 77.1909], ['Civil Lines', 'Central Delhi', 28.6814, 77.2228],
+  ['Minto Bridge', 'Central Delhi', 28.6392, 77.2221], ['Shahdara', 'Shahdara', 28.6733, 77.2890],
+  ['Anand Vihar', 'East Delhi', 28.6468, 77.3160], ['Sonia Vihar', 'North East Delhi', 28.7098, 77.2465],
+  ['Yamuna Vihar', 'North East Delhi', 28.6988, 77.2737], ['Dilshad Garden', 'Shahdara', 28.6812, 77.3025],
+  ['Vasant Kunj', 'South West Delhi', 28.5293, 77.1480], ['Mehrauli', 'South Delhi', 28.5245, 77.1855],
+  ['Saket', 'South Delhi', 28.5244, 77.2066], ['R.K. Puram', 'New Delhi', 28.5635, 77.1865],
+  ['Lajpat Nagar', 'South East Delhi', 28.5677, 77.2433], ['Okhla', 'South East Delhi', 28.5355, 77.3024],
+  ['Jasola', 'South East Delhi', 28.5420, 77.2910], ['Badarpur', 'South East Delhi', 28.5037, 77.3019],
+  ['Tughlakabad', 'South East Delhi', 28.5112, 77.2625],
+].map(([locality, district, lat, lng]) => ({ locality, district, lat, lng }));
+
+const deviceIdentityCodes = {
+  Flood: 'FLD', Fire: 'FIR', 'Air Quality': 'AIR', Heat: 'HET', Weather: 'WTH', Dust: 'DST',
+  'Industrial Pollution': 'IND', 'Water Quality': 'WTR',
+};
+
+function nearestDelhiArea(latitude, longitude) {
+  const lngScale = Math.cos(latitude * Math.PI / 180);
+  const nearest = delhiAreaAnchors.reduce((best, anchor) => {
+    const distance = (anchor.lat - latitude) ** 2 + ((anchor.lng - longitude) * lngScale) ** 2;
+    return distance < best.distance ? { ...anchor, distance } : best;
+  }, { ...delhiAreaAnchors[0], distance: Number.POSITIVE_INFINITY });
+  return { locality: nearest.locality, district: nearest.district, label: `${nearest.locality} · ${nearest.district}` };
+}
+
+function nodeZone(node) {
+  const zoneNumber = String(node.zone || '').match(/[1-6]/)?.[0] || String(node.id || '').match(/^Z([1-6])/i)?.[1] || '1';
+  return `ZONE-${zoneNumber}`;
+}
+
+function generateDeviceIdentity(device, nodes) {
+  const zoneNumber = String(device.zone || 'ZONE-1').match(/[1-6]/)?.[0] || '1';
+  const sameZoneSequences = nodes
+    .filter((node) => nodeZone(node) === `ZONE-${zoneNumber}`)
+    .map((node) => Number(String(node.id || '').match(/(\d{1,3})$/)?.[1] || 0));
+  const sequence = String(Math.max(0, ...sameZoneSequences) + 1).padStart(3, '0');
+  const typeCode = device.nodeType === 'Gateway' ? 'GTW' : device.nodeType === 'Multi-Hazard Node' ? 'MHT' : device.nodeType === 'Reference Node' ? 'REF' : deviceIdentityCodes[device.hazard] || 'NOD';
+  const typeName = device.nodeType === 'Gateway' ? 'Gateway' : device.nodeType === 'Multi-Hazard Node' ? 'Multi-Hazard' : device.nodeType === 'Reference Node' ? 'Reference' : device.hazard;
+  return { id: `Z${zoneNumber}-${typeCode}-${sequence}`, name: `${typeName} Zone ${zoneNumber} · ${sequence} Node` };
+}
+
 const createBlankDevice = () => ({
-  id: '', name: '', area: 'Central Delhi', nodeType: 'Sensor Node', gatewayId: '', hazard: 'Flood', status: 'safe', risk: '20',
+  id: '', name: '', area: '', district: '', locality: '', zone: 'ZONE-1', nodeType: 'Sensor Node', gatewayId: '', hazard: 'Flood', status: 'safe', risk: '20',
   latitude: '', longitude: '', sensors: [...hazardSensorPresets.Flood],
 });
 
@@ -500,6 +557,7 @@ function DeviceAdminModal({ stage, setStage, initialMode, onSaveDevice, onDelete
   const selectedRegistryNode = nodes.find((node) => node.id === selectedRegistryId) || null;
   const registryNodes = useMemo(() => nodes.filter((node) => `${node.id} ${node.name} ${node.area} ${node.nodeType || ''}`.toLowerCase().includes(registryQuery.toLowerCase())), [nodes, registryQuery]);
   const gateways = nodes.filter((node) => node.nodeType === 'Gateway');
+  const autoIdentity = generateDeviceIdentity(device, nodes);
 
   useEffect(() => {
     if (stage === 'manage' && !selectedRegistryNode && nodes.length) setSelectedRegistryId(nodes[0].id);
@@ -517,16 +575,27 @@ function DeviceAdminModal({ stage, setStage, initialMode, onSaveDevice, onDelete
   const update = (key, value) => setDevice((current) => ({ ...current, [key]: value }));
   const updateHazard = (hazard) => setDevice((current) => ({ ...current, hazard, sensors: hazardSensorPresets[hazard] || current.sensors }));
   const toggleSensor = (sensor) => setDevice((current) => ({ ...current, sensors: current.sensors.includes(sensor) ? current.sensors.filter((item) => item !== sensor) : [...current.sensors, sensor] }));
-  const setCoordinates = (latitude, longitude) => setDevice((current) => ({ ...current, latitude: String(latitude), longitude: String(longitude) }));
+  const setCoordinates = (latitude, longitude) => {
+    const nearest = nearestDelhiArea(latitude, longitude);
+    setDevice((current) => ({ ...current, latitude: String(latitude), longitude: String(longitude), area: nearest.label, district: nearest.district, locality: nearest.locality }));
+  };
+  const syncAreaFromCoordinates = () => {
+    if (device.latitude === '' || device.longitude === '') return;
+    const latitude = Number(device.latitude); const longitude = Number(device.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    const nearest = nearestDelhiArea(latitude, longitude);
+    setDevice((current) => ({ ...current, area: nearest.label, district: nearest.district, locality: nearest.locality }));
+  };
   const editDevice = (node) => {
     setEditingId(node.id);
-    setDevice({ id: node.id, name: node.name, area: node.area, nodeType: node.nodeType || 'Sensor Node', gatewayId: node.gatewayId || '', hazard: node.hazard || 'Weather', status: node.status || 'safe', risk: String(node.risk ?? 20), latitude: String(node.lat), longitude: String(node.lng), sensors: nodeSensors(node) });
+    const nearest = nearestDelhiArea(Number(node.lat), Number(node.lng));
+    setDevice({ id: node.id, name: node.name, area: node.area || nearest.label, district: node.district || nearest.district, locality: node.locality || nearest.locality, zone: nodeZone(node), nodeType: node.nodeType || 'Sensor Node', gatewayId: node.gatewayId || '', hazard: node.hazard || 'Weather', status: node.status || 'safe', risk: String(node.risk ?? 20), latitude: String(node.lat), longitude: String(node.lng), sensors: nodeSensors(node) });
     setFormError(''); setDeleteArmed(null);
   };
   const submitDevice = async (event) => {
     event.preventDefault();
     const lat = Number(device.latitude); const lng = Number(device.longitude);
-    if (!device.id.trim() || !device.name.trim() || !device.area.trim()) return setFormError('Device ID, name and district are required.');
+    if (!device.area.trim()) return setFormError('Pick a map point so the nearest area and district can be identified.');
     if (device.nodeType !== 'Gateway' && !device.sensors.length) return setFormError('Select at least one installed sensor.');
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return setFormError('Choose a map point or enter valid coordinates.');
     if (lat < 28.404629 || lat > 28.883446 || lng < 76.838835 || lng > 77.345338) return setFormError('Location must be inside Delhi NCT.');
@@ -539,7 +608,7 @@ function DeviceAdminModal({ stage, setStage, initialMode, onSaveDevice, onDelete
           return [key, previous?.readings?.[key] || previous?.readings?.[sensor] || 'Awaiting data'];
         }));
     const payload = {
-      id: device.id.trim().toUpperCase(), name: device.name.trim(), area: device.area.trim(), nodeType: device.nodeType, gatewayId: device.nodeType === 'Gateway' ? '' : device.gatewayId,
+      id: device.id.trim().toUpperCase() || autoIdentity.id, name: device.name.trim() || autoIdentity.name, area: device.area.trim(), district: device.district, locality: device.locality, zone: device.zone, nodeType: device.nodeType, gatewayId: device.nodeType === 'Gateway' ? '' : device.gatewayId,
       hazard: device.hazard, status: device.status, lat, lng, risk: Math.max(0, Math.min(100, Number(device.risk) || 0)), updated: 'Just now',
       sensors: device.sensors, warningProfiles: buildWarningProfiles(device.sensors), readings,
     };
@@ -561,17 +630,19 @@ function DeviceAdminModal({ stage, setStage, initialMode, onSaveDevice, onDelete
   const renderDeviceEditorPanel = (compact = false) => (
     <section className={`device-editor-panel ${compact ? 'compact' : ''}`}>
       {compact && <header><div><span>EDITING DEVICE</span><h3>{device.id} · {device.name}</h3></div><button type="button" onClick={() => { setEditingId(null); setFormError(''); }}><X size={14} />Cancel edit</button></header>}
+      {!editingId && <div className="auto-identity-preview"><i><Cpu size={16} /></i><div><span>AUTO ID</span><b>{device.id.trim().toUpperCase() || autoIdentity.id}</b></div><div><span>AUTO DEVICE NAME</span><b>{device.name.trim() || autoIdentity.name}</b></div><small>{device.area || 'Pick a map point to identify the nearest Delhi locality'}</small></div>}
       <div className="device-fields">
-        <label>DEVICE ID<input value={device.id} readOnly={Boolean(editingId)} onChange={(event) => update('id', event.target.value)} placeholder="e.g. FLOOD-021" /></label>
-        <label>DEVICE NAME<input value={device.name} onChange={(event) => update('name', event.target.value)} placeholder="Deployment location" /></label>
-        <label>DISTRICT / AREA<input value={device.area} onChange={(event) => update('area', event.target.value)} /></label>
+        <label>ZONE<select value={device.zone} onChange={(event) => update('zone', event.target.value)}>{delhiZones.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label>DEVICE ID · OPTIONAL<input value={device.id} readOnly={Boolean(editingId)} onChange={(event) => update('id', event.target.value)} placeholder={`Auto · ${autoIdentity.id}`} /></label>
+        <label>DEVICE NAME · OPTIONAL<input value={device.name} onChange={(event) => update('name', event.target.value)} placeholder={`Auto · ${autoIdentity.name}`} /></label>
+        <label>DISTRICT / AREA<input value={device.area} onChange={(event) => update('area', event.target.value)} placeholder="Auto-filled from map" /></label>
         <label>NODE TYPE<select value={device.nodeType} onChange={(event) => update('nodeType', event.target.value)}><option>Sensor Node</option><option>Gateway</option><option>Multi-Hazard Node</option><option>Reference Node</option></select></label>
         <label>GATEWAY<select value={device.gatewayId} disabled={device.nodeType === 'Gateway'} onChange={(event) => update('gatewayId', event.target.value)}><option value="">Direct / unassigned</option>{gateways.map((gateway) => <option key={gateway.id} value={gateway.id}>{gateway.id} · {gateway.name}</option>)}</select></label>
         <label>HAZARD PROFILE<select value={device.hazard} onChange={(event) => updateHazard(event.target.value)}>{Object.keys(hazardSensorPresets).map((hazard) => <option key={hazard}>{hazard}</option>)}</select></label>
         <label>INITIAL STATUS<select value={device.status} onChange={(event) => update('status', event.target.value)}><option value="safe">Normal</option><option value="moderate">Moderate</option><option value="high">High</option><option value="critical">Critical</option></select></label>
         <label>RISK SCORE<input type="number" min="0" max="100" value={device.risk} onChange={(event) => update('risk', event.target.value)} /></label>
-        <label>LATITUDE<input type="number" step="0.000001" value={device.latitude} onChange={(event) => update('latitude', event.target.value)} placeholder="28.613900" /></label>
-        <label>LONGITUDE<input type="number" step="0.000001" value={device.longitude} onChange={(event) => update('longitude', event.target.value)} placeholder="77.209000" /></label>
+        <label>LATITUDE<input type="number" step="0.000001" value={device.latitude} onChange={(event) => update('latitude', event.target.value)} onBlur={syncAreaFromCoordinates} placeholder="28.613900" /></label>
+        <label>LONGITUDE<input type="number" step="0.000001" value={device.longitude} onChange={(event) => update('longitude', event.target.value)} onBlur={syncAreaFromCoordinates} placeholder="77.209000" /></label>
       </div>
       <section className="sensor-selector"><header><div><span>INSTALLED SENSORS</span><b>{device.sensors.length} selected</b></div><button type="button" onClick={() => update('sensors', hazardSensorPresets[device.hazard] || [])}>Use hazard preset</button></header><div>{sensorOptions.map((sensor) => { const selected = device.sensors.includes(sensor); return <button type="button" key={sensor} className={selected ? 'selected' : ''} aria-pressed={selected} onClick={() => toggleSensor(sensor)}><Check size={11} className={selected ? '' : 'sensor-check-hidden'} />{sensor}</button>; })}</div></section>
       {formError && <div className="device-form-error"><AlertTriangle size={14} />{formError}</div>}
@@ -585,7 +656,7 @@ function DeviceAdminModal({ stage, setStage, initialMode, onSaveDevice, onDelete
       : stage === 'form' ? <form className="device-card form-card" onSubmit={submitDevice}>
         <header><div><span>ADMIN PANEL · FIREBASE</span><h2>Add field device</h2><p>Pick the location on the left; complete device setup on the right.</p></div>{renderAdminTabs()}<button type="button" className="device-card-close" onClick={close}><X size={17} /></button></header>
         <div className="device-side-layout"><DeviceLocationPicker latitude={device.latitude === '' ? NaN : Number(device.latitude)} longitude={device.longitude === '' ? NaN : Number(device.longitude)} onChange={setCoordinates} />{renderDeviceEditorPanel()}</div>
-        <footer><span><Server size={13} />Firebase <code>{`/devices/${device.id || 'DEVICE-ID'}`}</code></span><button type="button" onClick={showDevices}>Cancel</button><button type="submit" className="admin-primary" disabled={saving}><Save size={14} />{saving ? 'Saving…' : 'Add device'}</button></footer>
+        <footer><span><Server size={13} />Firebase <code>{`/devices/${device.id.trim().toUpperCase() || autoIdentity.id}`}</code></span><button type="button" onClick={showDevices}>Cancel</button><button type="submit" className="admin-primary" disabled={saving}><Save size={14} />{saving ? 'Saving…' : 'Add device'}</button></footer>
       </form>
       : <section className="device-card registry-card">
         <header><div><span>ADMIN PANEL · FIREBASE</span><h2>{editingId ? `Editing ${editingId}` : 'Deployed device registry'}</h2><p>{editingId ? 'Update details on the right and move its location from the map.' : 'Select a map marker or list item to manage a device.'}</p></div>{renderAdminTabs()}<button type="button" className="device-card-close" onClick={close}><X size={17} /></button></header>
