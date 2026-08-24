@@ -13,18 +13,23 @@ import {
   ChevronRight,
   CloudFog,
   CloudRain,
+  Cpu,
   Crosshair,
   Download,
+  Eye,
   FileText,
   Factory,
   Flame,
+  FlaskConical,
   Gauge,
   LockKeyhole,
   Map as MapIcon,
   MapPinned,
   Moon,
+  Pencil,
   Plus,
   Radio,
+  RadioTower,
   Save,
   Search,
   Server,
@@ -32,6 +37,7 @@ import {
   ShieldCheck,
   Sun,
   ThermometerSun,
+  Trash2,
   ToggleLeft,
   ToggleRight,
   Waves,
@@ -53,6 +59,11 @@ const HazardMap = dynamic(() => import('./HazardMap'), {
 const DeviceLocationPicker = dynamic(() => import('./DeviceLocationPicker'), {
   ssr: false,
   loading: () => <div className="device-map-loading"><MapPinned size={19} /><span>Loading location picker</span></div>,
+});
+
+const DeviceRegistryMap = dynamic(() => import('./DeviceRegistryMap'), {
+  ssr: false,
+  loading: () => <div className="device-map-loading"><MapPinned size={19} /><span>Loading device registry</span></div>,
 });
 
 const FIREBASE_URL = 'https://sih-kavach-default-rtdb.asia-southeast1.firebasedatabase.app';
@@ -224,7 +235,73 @@ async function firebaseRequest(path, options = {}) {
   return response.json();
 }
 
-const hazardIcons = { Flood: Waves, Fire: Flame, 'Forest Fire': Flame, 'Air Quality': Wind, Heat: ThermometerSun, Weather: CloudRain, Dust: CloudFog, 'Industrial Pollution': Factory };
+const hazardIcons = { Flood: Waves, Fire: Flame, 'Forest Fire': Flame, 'Air Quality': Wind, Heat: ThermometerSun, Weather: CloudRain, Dust: CloudFog, 'Industrial Pollution': Factory, 'Water Quality': FlaskConical };
+
+const sensorOptions = [
+  'Water level', 'Rainfall', 'Soil moisture', 'Water temperature', 'pH', 'Turbidity', 'Conductivity',
+  'Air temperature', 'Humidity', 'Heat index', 'PM2.5', 'PM10', 'NO2', 'CO', 'O3', 'SO2', 'VOC',
+  'Noise', 'Pressure', 'H2S', 'NH3', 'Wind speed',
+];
+
+const hazardSensorPresets = {
+  Flood: ['Water level', 'Rainfall', 'Soil moisture'],
+  Fire: ['Air temperature', 'Humidity', 'Wind speed', 'PM2.5'],
+  'Air Quality': ['PM2.5', 'PM10', 'NO2', 'CO', 'O3'],
+  Heat: ['Air temperature', 'Humidity', 'Heat index'],
+  Weather: ['Rainfall', 'Air temperature', 'Humidity', 'Pressure', 'Wind speed'],
+  Dust: ['PM10', 'PM2.5', 'Wind speed'],
+  'Industrial Pollution': ['PM2.5', 'PM10', 'VOC', 'CO', 'NO2', 'SO2'],
+  'Water Quality': ['Water level', 'pH', 'Turbidity', 'Conductivity', 'H2S', 'NH3'],
+};
+
+const createBlankDevice = () => ({
+  id: '', name: '', area: 'Central Delhi', nodeType: 'Sensor Node', gatewayId: '', hazard: 'Flood', status: 'safe', risk: '20',
+  latitude: '', longitude: '', sensors: [...hazardSensorPresets.Flood],
+});
+
+const firebaseReadingKey = (sensor) => sensor.replaceAll('.', '·').replace(/[#$\[\]\/]/g, ' ');
+const nodeSensors = (node) => node.sensors?.length ? node.sensors : Object.keys(node.readings || {}).filter((key) => !['Status', 'Signal', 'Source'].includes(key)).map((key) => key.replaceAll('·', '.'));
+
+function buildWarningProfiles(sensors) {
+  const normalized = sensors.map((sensor) => sensor.toLowerCase());
+  const profiles = [];
+  if (normalized.some((sensor) => ['rainfall', 'water level', 'soil moisture'].some((term) => sensor.includes(term)))) profiles.push('monsoon-waterlogging-flood');
+  if (normalized.some((sensor) => ['temperature', 'humidity', 'heat index'].some((term) => sensor.includes(term)))) profiles.push('summer-heat-zone');
+  if (normalized.some((sensor) => ['pm2.5', 'pm10', 'no2', 'co', 'o3', 'so2', 'voc'].some((term) => sensor.includes(term)))) profiles.push('diwali-pollution');
+  return profiles;
+}
+
+function SeasonalWarningTicker({ nodes }) {
+  const [warningIndex, setWarningIndex] = useState(0);
+  const month = new Date().getMonth() + 1;
+  const warningTemplates = useMemo(() => {
+    const definitions = [
+      { id: 'monsoon', months: [6, 7, 8, 9], icon: Waves, title: 'Rainfall → waterlogging → flood watch', detail: 'Rainfall, water-level and soil-moisture nodes escalate in sequence.', terms: ['rainfall', 'water level', 'soil moisture'], season: 'JUN–SEP' },
+      { id: 'summer', months: [4, 5, 6], icon: ThermometerSun, title: 'Temperature → heat-zone escalation', detail: 'Heat index rises from local hot spot to district exposure warning.', terms: ['temperature', 'heat index', 'humidity'], season: 'APR–JUN' },
+      { id: 'diwali', months: [10, 11], icon: Wind, title: 'PM / gas → Diwali pollution watch', detail: 'Particulate and gas sensors rotate through pollution and smog warnings.', terms: ['pm2.5', 'pm10', 'no2', 'co', 'o3', 'so2', 'voc'], season: 'OCT–NOV' },
+    ];
+    return definitions.map((warning) => {
+      const compatibleNodes = nodes.filter((node) => nodeSensors(node).some((sensor) => warning.terms.some((term) => sensor.toLowerCase().includes(term))));
+      return { ...warning, compatibleNodes, active: warning.months.includes(month) };
+    }).sort((a, b) => Number(b.active) - Number(a.active));
+  }, [month, nodes]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setWarningIndex((current) => (current + 1) % warningTemplates.length), 5200);
+    return () => window.clearInterval(timer);
+  }, [warningTemplates.length]);
+
+  const warning = warningTemplates[warningIndex % warningTemplates.length];
+  const Icon = warning.icon;
+  return (
+    <section className={`sensor-warning-ticker ${warning.active ? 'active-season' : ''}`} aria-live="polite">
+      <i><Icon size={17} /></i>
+      <div><span>SENSOR WARNING LOGIC · {warningIndex + 1}/{warningTemplates.length}</span><strong>{warning.title}</strong><small>{warning.detail}</small></div>
+      <em><b>{warning.compatibleNodes.length}</b> NODES<small>{warning.active ? 'ACTIVE SEASON' : warning.season}</small></em>
+      <nav aria-label="Warning rotation">{warningTemplates.map((item, index) => <button key={item.id} className={index === warningIndex ? 'active' : ''} onClick={() => setWarningIndex(index)} aria-label={`Show ${item.id} warning`} />)}</nav>
+    </section>
+  );
+}
 
 function NavigationRail({ activeView, setActiveView, theme, setTheme, firebaseStatus }) {
   return (
@@ -292,10 +369,11 @@ function AlertRail({ states, onAcknowledge, onLocate, alertsData, nodes }) {
         <div className="feed-state"><i />Simulated feed</div>
       </header>
       <div className="alert-summary">
-        <div><span>Active incidents</span><strong>06</strong></div>
+        <div><span>Active incidents</span><strong>{String(alertsData.length).padStart(2, '0')}</strong></div>
         <div><span>Unacknowledged</span><strong>{alertsData.length - Object.keys(states).filter((id) => states[id]).length}</strong></div>
         <div><span>Highest risk</span><strong className="critical-text">91%</strong></div>
       </div>
+      <SeasonalWarningTicker nodes={nodes} />
       <div className="queue-heading"><div><span>PRIORITY QUEUE</span><b>Newest first</b></div><button aria-label="Filter alerts">All <ChevronRight size={12} /></button></div>
       <div className="incident-feed">
         {alertsData.map((alert) => <AlertItem key={alert.id} alert={alert} state={states[alert.id]} onAcknowledge={onAcknowledge} onLocate={onLocate} nodes={nodes} />)}
@@ -409,59 +487,102 @@ function ReportsPage({ reportsData, onGenerateReport, alertsData, nodes }) {
   );
 }
 
-function DeviceAdminModal({ stage, setStage, onAddDevice }) {
+function DeviceAdminModal({ stage, setStage, initialMode, onSaveDevice, onDeleteDevice, nodes }) {
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [device, setDevice] = useState({ id: '', name: '', area: 'Central Delhi', hazard: 'Flood', status: 'safe', risk: '20', latitude: '', longitude: '' });
+  const [editingId, setEditingId] = useState(null);
+  const [device, setDevice] = useState(createBlankDevice);
+  const [selectedRegistryId, setSelectedRegistryId] = useState(null);
+  const [deleteArmed, setDeleteArmed] = useState(null);
+  const [registryQuery, setRegistryQuery] = useState('');
+  const selectedRegistryNode = nodes.find((node) => node.id === selectedRegistryId) || null;
+  const registryNodes = useMemo(() => nodes.filter((node) => `${node.id} ${node.name} ${node.area} ${node.nodeType || ''}`.toLowerCase().includes(registryQuery.toLowerCase())), [nodes, registryQuery]);
+  const gateways = nodes.filter((node) => node.nodeType === 'Gateway');
+
+  useEffect(() => {
+    if (stage === 'manage' && !selectedRegistryNode && nodes.length) setSelectedRegistryId(nodes[0].id);
+  }, [nodes, selectedRegistryNode, stage]);
 
   if (!stage) return null;
-  const close = () => { setStage(null); setPin(''); setPinError(''); setFormError(''); };
+  const close = () => { setStage(null); setPin(''); setPinError(''); setFormError(''); setDeleteArmed(null); };
+  const startAdd = () => { setEditingId(null); setDevice(createBlankDevice()); setFormError(''); setStage('form'); };
+  const showDevices = () => { setFormError(''); setDeleteArmed(null); setStage('manage'); };
   const verifyPin = (event) => {
     event.preventDefault();
-    if (pin === '0') { setPinError(''); setStage('form'); }
+    if (pin === '0') { setPinError(''); setStage(initialMode || 'form'); }
     else setPinError('Incorrect admin PIN');
   };
   const update = (key, value) => setDevice((current) => ({ ...current, [key]: value }));
+  const updateHazard = (hazard) => setDevice((current) => ({ ...current, hazard, sensors: hazardSensorPresets[hazard] || current.sensors }));
+  const toggleSensor = (sensor) => setDevice((current) => ({ ...current, sensors: current.sensors.includes(sensor) ? current.sensors.filter((item) => item !== sensor) : [...current.sensors, sensor] }));
   const setCoordinates = (latitude, longitude) => setDevice((current) => ({ ...current, latitude: String(latitude), longitude: String(longitude) }));
+  const editDevice = (node) => {
+    setEditingId(node.id);
+    setDevice({ id: node.id, name: node.name, area: node.area, nodeType: node.nodeType || 'Sensor Node', gatewayId: node.gatewayId || '', hazard: node.hazard || 'Weather', status: node.status || 'safe', risk: String(node.risk ?? 20), latitude: String(node.lat), longitude: String(node.lng), sensors: nodeSensors(node) });
+    setFormError(''); setDeleteArmed(null); setStage('form');
+  };
   const submitDevice = async (event) => {
     event.preventDefault();
     const lat = Number(device.latitude); const lng = Number(device.longitude);
     if (!device.id.trim() || !device.name.trim() || !device.area.trim()) return setFormError('Device ID, name and district are required.');
+    if (device.nodeType !== 'Gateway' && !device.sensors.length) return setFormError('Select at least one installed sensor.');
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return setFormError('Choose a map point or enter valid coordinates.');
     if (lat < 28.404629 || lat > 28.883446 || lng < 76.838835 || lng > 77.345338) return setFormError('Location must be inside Delhi NCT.');
     setSaving(true); setFormError('');
+    const previous = editingId ? nodes.find((node) => node.id === editingId) : null;
+    const readings = device.nodeType === 'Gateway'
+      ? { Connectivity: previous?.readings?.Connectivity || 'Online', 'Linked nodes': previous?.readings?.['Linked nodes'] || '0' }
+      : Object.fromEntries(device.sensors.map((sensor) => {
+          const key = firebaseReadingKey(sensor);
+          return [key, previous?.readings?.[key] || previous?.readings?.[sensor] || 'Awaiting data'];
+        }));
+    const payload = {
+      id: device.id.trim().toUpperCase(), name: device.name.trim(), area: device.area.trim(), nodeType: device.nodeType, gatewayId: device.nodeType === 'Gateway' ? '' : device.gatewayId,
+      hazard: device.hazard, status: device.status, lat, lng, risk: Math.max(0, Math.min(100, Number(device.risk) || 0)), updated: 'Just now',
+      sensors: device.sensors, warningProfiles: buildWarningProfiles(device.sensors), readings,
+    };
     try {
-      await onAddDevice({
-        id: device.id.trim().toUpperCase(), name: device.name.trim(), area: device.area.trim(), hazard: device.hazard, status: device.status,
-        lat, lng, risk: Math.max(0, Math.min(100, Number(device.risk) || 0)), updated: 'Just now',
-        readings: { Status: 'Commissioned', Signal: 'Awaiting telemetry', Source: 'Firebase' },
-      });
-      close();
-    } catch (error) { setFormError(error.message || 'Could not add device.'); }
+      await onSaveDevice(payload, editingId);
+      setSelectedRegistryId(payload.id); setEditingId(null); setDevice(createBlankDevice()); setStage('manage');
+    } catch (error) { setFormError(error.message || 'Could not save device.'); }
+    finally { setSaving(false); }
+  };
+  const confirmDelete = async () => {
+    if (!selectedRegistryNode) return;
+    setSaving(true);
+    try { await onDeleteDevice(selectedRegistryNode.id); setDeleteArmed(null); setSelectedRegistryId(null); }
+    catch (error) { setFormError(error.message || 'Could not delete device.'); }
     finally { setSaving(false); }
   };
 
+  const AdminTabs = () => <nav className="device-admin-tabs" aria-label="Device admin views"><button type="button" className={stage === 'form' ? 'active' : ''} onClick={startAdd}><Plus size={13} />Add device</button><button type="button" className={stage === 'manage' ? 'active' : ''} onClick={showDevices}><Eye size={13} />Show devices</button></nav>;
+
   return (
-    <div className="admin-modal-backdrop" role="dialog" aria-modal="true" aria-label={stage === 'pin' ? 'Admin PIN' : 'Add device'}>
-      {stage === 'pin' ? <form className="pin-card" onSubmit={verifyPin}><button type="button" className="modal-close" onClick={close}><X size={16} /></button><i><LockKeyhole size={22} /></i><span>ADMIN PANEL</span><h2>Enter security PIN</h2><p>Device registration is restricted to authorised command-centre staff.</p><label>ADMIN PIN<input autoFocus type="password" inputMode="numeric" value={pin} onChange={(event) => setPin(event.target.value)} placeholder="Enter PIN" /></label>{pinError && <em>{pinError}</em>}<button className="admin-primary" type="submit">Continue <ChevronRight size={14} /></button></form>
-      : <form className="device-card" onSubmit={submitDevice}><header><div><span>ADMIN PANEL · FIREBASE</span><h2>Add field device</h2><p>Register a node and capture its Delhi deployment location.</p></div><button type="button" onClick={close}><X size={17} /></button></header><div className="device-form-body"><div className="device-fields">
-        <label>DEVICE ID<input value={device.id} onChange={(event) => update('id', event.target.value)} placeholder="e.g. FLOOD-021" /></label>
+    <div className="admin-modal-backdrop" role="dialog" aria-modal="true" aria-label={stage === 'pin' ? 'Admin PIN' : 'Device administration'}>
+      {stage === 'pin' ? <form className="pin-card" onSubmit={verifyPin}><button type="button" className="modal-close" onClick={close}><X size={16} /></button><i><LockKeyhole size={22} /></i><span>ADMIN PANEL</span><h2>Enter security PIN</h2><p>Device registration and deletion are restricted to authorised command-centre staff.</p><label>ADMIN PIN<input autoFocus type="password" inputMode="numeric" value={pin} onChange={(event) => setPin(event.target.value)} placeholder="Enter PIN" /></label>{pinError && <em>{pinError}</em>}<button className="admin-primary" type="submit">Continue <ChevronRight size={14} /></button></form>
+      : stage === 'form' ? <form className="device-card" onSubmit={submitDevice}><header><div><span>ADMIN PANEL · FIREBASE</span><h2>{editingId ? `Edit ${editingId}` : 'Add field device'}</h2><p>Define device role, gateway, sensors and deployment location.</p></div><AdminTabs /><button type="button" className="device-card-close" onClick={close}><X size={17} /></button></header><div className="device-form-body"><div className="device-fields">
+        <label>DEVICE ID<input value={device.id} readOnly={Boolean(editingId)} onChange={(event) => update('id', event.target.value)} placeholder="e.g. FLOOD-021" /></label>
         <label>DEVICE NAME<input value={device.name} onChange={(event) => update('name', event.target.value)} placeholder="Deployment location" /></label>
         <label>DISTRICT / AREA<input value={device.area} onChange={(event) => update('area', event.target.value)} /></label>
-        <label>HAZARD PROFILE<select value={device.hazard} onChange={(event) => update('hazard', event.target.value)}><option>Flood</option><option>Fire</option><option>Air Quality</option><option>Heat</option><option>Weather</option><option>Dust</option><option>Industrial Pollution</option></select></label>
+        <label>NODE TYPE<select value={device.nodeType} onChange={(event) => update('nodeType', event.target.value)}><option>Sensor Node</option><option>Gateway</option><option>Multi-Hazard Node</option><option>Reference Node</option></select></label>
+        <label>GATEWAY<select value={device.gatewayId} disabled={device.nodeType === 'Gateway'} onChange={(event) => update('gatewayId', event.target.value)}><option value="">Direct / unassigned</option>{gateways.map((gateway) => <option key={gateway.id} value={gateway.id}>{gateway.id} · {gateway.name}</option>)}</select></label>
+        <label>HAZARD PROFILE<select value={device.hazard} onChange={(event) => updateHazard(event.target.value)}>{Object.keys(hazardSensorPresets).map((hazard) => <option key={hazard}>{hazard}</option>)}</select></label>
         <label>INITIAL STATUS<select value={device.status} onChange={(event) => update('status', event.target.value)}><option value="safe">Normal</option><option value="moderate">Moderate</option><option value="high">High</option><option value="critical">Critical</option></select></label>
         <label>RISK SCORE<input type="number" min="0" max="100" value={device.risk} onChange={(event) => update('risk', event.target.value)} /></label>
         <label>LATITUDE<input type="number" step="0.000001" value={device.latitude} onChange={(event) => update('latitude', event.target.value)} placeholder="28.613900" /></label>
         <label>LONGITUDE<input type="number" step="0.000001" value={device.longitude} onChange={(event) => update('longitude', event.target.value)} placeholder="77.209000" /></label>
-      </div><DeviceLocationPicker latitude={device.latitude === '' ? NaN : Number(device.latitude)} longitude={device.longitude === '' ? NaN : Number(device.longitude)} onChange={setCoordinates} />{formError && <div className="device-form-error"><AlertTriangle size={14} />{formError}</div>}</div><footer><span><Server size={13} />Will save to Firebase <code>{`/devices/${device.id || 'DEVICE-ID'}`}</code></span><button type="button" onClick={close}>Cancel</button><button type="submit" className="admin-primary" disabled={saving}><Save size={14} />{saving ? 'Saving…' : 'Add device'}</button></footer></form>}
+      </div><section className="sensor-selector"><header><div><span>INSTALLED SENSORS</span><b>{device.sensors.length} selected</b></div><button type="button" onClick={() => update('sensors', hazardSensorPresets[device.hazard] || [])}>Use hazard preset</button></header><div>{sensorOptions.map((sensor) => <button type="button" key={sensor} className={device.sensors.includes(sensor) ? 'selected' : ''} aria-pressed={device.sensors.includes(sensor)} onClick={() => toggleSensor(sensor)}>{device.sensors.includes(sensor) && <Check size={11} />}{sensor}</button>)}</div></section><DeviceLocationPicker latitude={device.latitude === '' ? NaN : Number(device.latitude)} longitude={device.longitude === '' ? NaN : Number(device.longitude)} onChange={setCoordinates} />{formError && <div className="device-form-error"><AlertTriangle size={14} />{formError}</div>}</div><footer><span><Server size={13} />Firebase <code>{`/devices/${device.id || 'DEVICE-ID'}`}</code></span><button type="button" onClick={showDevices}>Cancel</button><button type="submit" className="admin-primary" disabled={saving}><Save size={14} />{saving ? 'Saving…' : editingId ? 'Save changes' : 'Add device'}</button></footer></form>
+      : <section className="device-card registry-card"><header><div><span>ADMIN PANEL · FIREBASE</span><h2>Deployed device registry</h2><p>Select a map marker or list item to edit and delete devices.</p></div><AdminTabs /><button type="button" className="device-card-close" onClick={close}><X size={17} /></button></header><div className="device-manager-body"><DeviceRegistryMap nodes={nodes} selectedNode={selectedRegistryNode} onSelect={(node) => { setSelectedRegistryId(node.id); setDeleteArmed(null); }} /><aside className="device-manager-panel"><label><Search size={13} /><input value={registryQuery} onChange={(event) => setRegistryQuery(event.target.value)} placeholder="Search device" /></label><div className="registry-list">{registryNodes.map((node) => <button key={node.id} className={selectedRegistryId === node.id ? 'selected' : ''} onClick={() => { setSelectedRegistryId(node.id); setDeleteArmed(null); }}><i className={`severity-dot ${node.status}`} /><span><b>{node.id} · {node.nodeType || 'Sensor Node'}</b><small>{node.name}</small></span><em>{node.risk}%</em></button>)}</div>{selectedRegistryNode && <article className="registry-selection"><span>SELECTED DEVICE</span><h3>{selectedRegistryNode.name}</h3><p>{selectedRegistryNode.id} · {selectedRegistryNode.area}</p><div><b><Cpu size={12} />{selectedRegistryNode.nodeType || 'Sensor Node'}</b><b><RadioTower size={12} />{selectedRegistryNode.gatewayId || 'Direct'}</b></div><small>{nodeSensors(selectedRegistryNode).join(' · ') || 'No sensors assigned'}</small>{deleteArmed === selectedRegistryNode.id ? <div className="delete-confirm"><p>Delete {selectedRegistryNode.id} permanently?</p><button onClick={() => setDeleteArmed(null)}>Keep</button><button className="danger" onClick={confirmDelete} disabled={saving}>{saving ? 'Deleting…' : 'Delete'}</button></div> : <footer><button onClick={() => editDevice(selectedRegistryNode)}><Pencil size={13} />Edit</button><button className="danger" onClick={() => setDeleteArmed(selectedRegistryNode.id)}><Trash2 size={13} />Delete</button></footer>}</article>}</aside></div><footer><span><Server size={13} />{nodes.length} devices live in Firebase</span><button type="button" onClick={close}>Close</button><button type="button" className="admin-primary" onClick={startAdd}><Plus size={14} />Add device</button></footer></section>}
     </div>
   );
 }
 
-function SettingsPage({ theme, setTheme, settingsData, onUpdateSetting, onAddDevice, nodes, firebaseStatus }) {
+function SettingsPage({ theme, setTheme, settingsData, onUpdateSetting, onSaveDevice, onDeleteDevice, nodes, firebaseStatus }) {
   const [adminStage, setAdminStage] = useState(null);
+  const [adminInitialMode, setAdminInitialMode] = useState('form');
+  const openAdmin = (mode) => { setAdminInitialMode(mode); setAdminStage('pin'); };
   const items = [
     ['escalation', 'Critical risk escalation', 'Notify the district EOC automatically above 85% risk.'],
     ['offline', 'Offline node warning', 'Create an alert after three missed sensor heartbeats.'],
@@ -474,10 +595,10 @@ function SettingsPage({ theme, setTheme, settingsData, onUpdateSetting, onAddDev
       <div className="settings-layout">
         <section className="settings-section"><header><span>APPEARANCE</span><h2>Interface theme</h2></header><div className="theme-choice"><button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')}><Sun size={18} /><span>Light mode</span><small>Bright operational workspace</small></button><button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')}><Moon size={18} /><span>Dark mode</span><small>Low-light command room</small></button></div></section>
         <section className="settings-section"><header><span>AUTOMATION · FIREBASE</span><h2>Rules & alerts</h2></header>{items.map(([key, title, detail]) => <button className="setting-toggle" key={key} onClick={() => onUpdateSetting(key, !settingsData[key])}><span><b>{title}</b><small>{detail}</small></span>{settingsData[key] ? <ToggleRight size={25} className="toggle-on" /> : <ToggleLeft size={25} />}</button>)}</section>
-        <section className="settings-section admin-panel"><header><span>ADMIN PANEL</span><h2>Device management</h2></header><div><i><Server size={21} /></i><span><b>Firebase device registry</b><small>{nodes.length} devices · Database {firebaseStatus}</small></span><button onClick={() => setAdminStage('pin')}><Plus size={14} />Add device</button></div></section>
+        <section className="settings-section admin-panel"><header><span>ADMIN PANEL</span><h2>Device management</h2></header><div><i><Server size={21} /></i><span><b>Firebase device registry</b><small>{nodes.length} devices · Database {firebaseStatus}</small></span><div className="admin-actions"><button onClick={() => openAdmin('manage')}><Eye size={14} />Show devices</button><button className="primary" onClick={() => openAdmin('form')}><Plus size={14} />Add device</button></div></div></section>
         <section className="settings-section thresholds"><header><span>AI RISK LEVELS</span><h2>Severity thresholds</h2></header>{[['Normal', '0–34%', 'safe'], ['Moderate', '35–59%', 'moderate'], ['High', '60–84%', 'high'], ['Critical', '85–100%', 'critical']].map(([label, value, level]) => <div key={label}><span><i className={`severity-dot ${level}`} />{label}</span><strong>{value}</strong></div>)}</section>
       </div>
-      <DeviceAdminModal stage={adminStage} setStage={setAdminStage} onAddDevice={onAddDevice} />
+      <DeviceAdminModal stage={adminStage} setStage={setAdminStage} initialMode={adminInitialMode} onSaveDevice={onSaveDevice} onDeleteDevice={onDeleteDevice} nodes={nodes} />
     </section>
   );
 }
@@ -539,11 +660,18 @@ export default function Home() {
     try { await firebaseRequest(`alerts/${encodeURIComponent(id)}/acknowledged`, { method: 'PUT', body: JSON.stringify(nextValue) }); }
     catch { setFirebaseStatus('error'); }
   };
-  const addDevice = async (device) => {
-    if (nodes.some((node) => node.id === device.id)) throw new Error('A device with this ID already exists.');
+  const saveDevice = async (device, editingId = null) => {
+    if (!editingId && nodes.some((node) => node.id === device.id)) throw new Error('A device with this ID already exists.');
     const key = device.id.replace(/[.#$\[\]\/]/g, '-');
     await firebaseRequest(`devices/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(device) });
-    setNodes((current) => [...current, device]);
+    setNodes((current) => editingId ? current.map((node) => node.id === editingId ? device : node) : [...current, device]);
+    setFirebaseStatus('connected');
+  };
+  const deleteDevice = async (deviceId) => {
+    const key = deviceId.replace(/[.#$\[\]\/]/g, '-');
+    await firebaseRequest(`devices/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    setNodes((current) => current.filter((node) => node.id !== deviceId));
+    setSelectedNode((current) => current?.id === deviceId ? null : current);
     setFirebaseStatus('connected');
   };
   const updateSetting = async (key, value) => {
@@ -563,7 +691,7 @@ export default function Home() {
     if (activeView === 'Sensor Grid') return <SensorsPage onLocate={locateNodeAndOpenMap} nodes={nodes} />;
     if (activeView === 'Analytics') return <AnalyticsPage analyticsData={analyticsData} />;
     if (activeView === 'Reports') return <ReportsPage reportsData={reportsData} onGenerateReport={generateReport} alertsData={alertsData} nodes={nodes} />;
-    return <SettingsPage theme={theme} setTheme={setTheme} settingsData={settingsData} onUpdateSetting={updateSetting} onAddDevice={addDevice} nodes={nodes} firebaseStatus={firebaseStatus} />;
+    return <SettingsPage theme={theme} setTheme={setTheme} settingsData={settingsData} onUpdateSetting={updateSetting} onSaveDevice={saveDevice} onDeleteDevice={deleteDevice} nodes={nodes} firebaseStatus={firebaseStatus} />;
   };
 
   return (
