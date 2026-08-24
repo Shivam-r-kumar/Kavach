@@ -6,18 +6,18 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 
 export const metadata = {
   metadataBase: new URL('https://kavach-disaster-intelligence.piyushrya03.chatgpt.site'),
-  title: 'KAVACH — Multi-Hazard Disaster Intelligence',
-  description: 'Edge-AI powered multi-hazard environmental intelligence and early warning network.',
+  title: 'KAVACH Delhi — Disaster Command Centre',
+  description: 'Delhi NCT multi-hazard command centre for local environmental intelligence and incident response.',
   openGraph: {
-    title: 'KAVACH — Multi-Hazard Disaster Intelligence',
-    description: 'One Network. Multiple Hazards. Intelligence at the Edge.',
+    title: 'KAVACH Delhi — Disaster Command Centre',
+    description: 'Delhi NCT geospatial intelligence and incident operations portal.',
     type: 'website',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'KAVACH multi-hazard intelligence network' }],
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'KAVACH disaster intelligence network' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'KAVACH — Multi-Hazard Disaster Intelligence',
-    description: 'One Network. Multiple Hazards. Intelligence at the Edge.',
+    title: 'KAVACH Delhi — Disaster Command Centre',
+    description: 'Delhi NCT geospatial intelligence and incident operations portal.',
     images: ['/og.png'],
   },
 };
