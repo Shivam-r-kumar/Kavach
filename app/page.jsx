@@ -16,10 +16,15 @@ import {
   Download,
   FileText,
   Gauge,
+  LockKeyhole,
   Map as MapIcon,
+  MapPinned,
   Moon,
+  Plus,
   Radio,
+  Save,
   Search,
+  Server,
   Settings,
   ShieldCheck,
   Sun,
@@ -27,7 +32,9 @@ import {
   ToggleLeft,
   ToggleRight,
   Waves,
+  Wifi,
   Wind,
+  X,
 } from 'lucide-react';
 
 const HazardMap = dynamic(() => import('./HazardMap'), {
@@ -39,6 +46,13 @@ const HazardMap = dynamic(() => import('./HazardMap'), {
     </div>
   ),
 });
+
+const DeviceLocationPicker = dynamic(() => import('./DeviceLocationPicker'), {
+  ssr: false,
+  loading: () => <div className="device-map-loading"><MapPinned size={19} /><span>Loading location picker</span></div>,
+});
+
+const FIREBASE_URL = 'https://sih-kavach-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 const navItems = [
   { label: 'Command Centre', icon: Activity },
@@ -132,9 +146,39 @@ const alerts = [
   },
 ];
 
+const fallbackAnalytics = {
+  riskTrend: [42, 51, 47, 62, 72, 91, 78, 69, 58, 63, 55, 49],
+  districts: [['North Delhi', 91], ['Central Delhi', 82], ['East Delhi', 78], ['South West', 59], ['North West', 54]],
+  hazards: [['Flood / Water', 46, 'cyan'], ['Air quality', 27, 'purple'], ['Heat stress', 17, 'orange'], ['Severe weather', 10, 'slate']],
+};
+
+const fallbackReports = [
+  { id: 'RPT-208', title: 'Delhi Daily Situation Report', scope: 'All districts', created: '24 Aug · 14:00', format: 'JSON' },
+  { id: 'RPT-207', title: 'Yamuna Flood Intelligence Brief', scope: 'North Delhi', created: '24 Aug · 13:30', format: 'JSON' },
+  { id: 'RPT-206', title: 'Air Quality Cluster Analysis', scope: 'East Delhi', created: '24 Aug · 12:45', format: 'JSON' },
+  { id: 'RPT-205', title: 'Sensor Network Health Summary', scope: 'Delhi NCT', created: '24 Aug · 12:00', format: 'JSON' },
+];
+
+const fallbackSettings = { escalation: true, offline: true, community: false, edge: true };
+
+const toCollection = (value, fallback) => {
+  if (!value) return fallback;
+  const rows = Array.isArray(value) ? value.filter(Boolean) : Object.values(value);
+  return rows.length ? rows : fallback;
+};
+
+async function firebaseRequest(path, options = {}) {
+  const response = await fetch(`${FIREBASE_URL}/${path}.json`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+  });
+  if (!response.ok) throw new Error(`Firebase request failed (${response.status})`);
+  return response.json();
+}
+
 const hazardIcons = { Flood: Waves, 'Air Quality': Wind, Heat: ThermometerSun, Weather: CloudRain };
 
-function NavigationRail({ activeView, setActiveView, theme, setTheme }) {
+function NavigationRail({ activeView, setActiveView, theme, setTheme, firebaseStatus }) {
   return (
     <aside className="nav-rail" aria-label="Primary navigation">
       <div className="nav-brand" aria-label="KAVACH Delhi"><ShieldCheck size={22} /><span>KV</span></div>
@@ -149,7 +193,7 @@ function NavigationRail({ activeView, setActiveView, theme, setTheme }) {
         <button className="theme-switch" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}<span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
         </button>
-        <div className="network-beacon" title="Delhi sensor network online"><i />DL</div>
+        <div className={`network-beacon ${firebaseStatus}`} title={`Firebase: ${firebaseStatus}`}><i />FB</div>
       </div>
     </aside>
   );
@@ -173,8 +217,8 @@ function SelectedNode({ node, onClose }) {
   );
 }
 
-function AlertItem({ alert, state, onAcknowledge, onLocate }) {
-  const node = delhiNodes.find((item) => item.id === alert.node);
+function AlertItem({ alert, state, onAcknowledge, onLocate, nodes = delhiNodes }) {
+  const node = nodes.find((item) => item.id === alert.node);
   const Icon = hazardIcons[node?.hazard] || AlertTriangle;
   return (
     <article className={`incident ${alert.level} ${state ? 'acknowledged' : ''}`}>
@@ -192,7 +236,7 @@ function AlertItem({ alert, state, onAcknowledge, onLocate }) {
   );
 }
 
-function AlertRail({ states, onAcknowledge, onLocate }) {
+function AlertRail({ states, onAcknowledge, onLocate, alertsData, nodes }) {
   return (
     <aside className="alert-rail" aria-label="Delhi active alerts">
       <header className="alert-rail-header">
@@ -201,23 +245,23 @@ function AlertRail({ states, onAcknowledge, onLocate }) {
       </header>
       <div className="alert-summary">
         <div><span>Active incidents</span><strong>06</strong></div>
-        <div><span>Unacknowledged</span><strong>{alerts.length - Object.keys(states).filter((id) => states[id]).length}</strong></div>
+        <div><span>Unacknowledged</span><strong>{alertsData.length - Object.keys(states).filter((id) => states[id]).length}</strong></div>
         <div><span>Highest risk</span><strong className="critical-text">91%</strong></div>
       </div>
       <div className="queue-heading"><div><span>PRIORITY QUEUE</span><b>Newest first</b></div><button aria-label="Filter alerts">All <ChevronRight size={12} /></button></div>
       <div className="incident-feed">
-        {alerts.map((alert) => <AlertItem key={alert.id} alert={alert} state={states[alert.id]} onAcknowledge={onAcknowledge} onLocate={onLocate} />)}
+        {alertsData.map((alert) => <AlertItem key={alert.id} alert={alert} state={states[alert.id]} onAcknowledge={onAcknowledge} onLocate={onLocate} nodes={nodes} />)}
       </div>
     </aside>
   );
 }
 
-function MapCanvas({ title, filter, setFilter, selectedNode, setSelectedNode }) {
+function MapCanvas({ title, filter, setFilter, selectedNode, setSelectedNode, nodes, alertsData }) {
   return (
     <section className="map-canvas" aria-label={`Delhi ${title} map`}>
-      <HazardMap nodes={delhiNodes} filter={filter} selectedNode={selectedNode} onSelect={setSelectedNode} />
+      <HazardMap nodes={nodes} filter={filter} selectedNode={selectedNode} onSelect={setSelectedNode} />
       <div className="map-identity"><div className="delhi-seal"><ShieldCheck size={18} /></div><div><span>KAVACH · DELHI</span><h1>{title}</h1></div></div>
-      <div className="map-status"><span><i />08 nodes deployed</span><b>10 DISTRICTS</b><b>06 ACTIVE ALERTS</b><b>24 AUG · 14:32 IST</b></div>
+      <div className="map-status"><span><i />{String(nodes.length).padStart(2, '0')} nodes deployed</span><b>10 DISTRICTS</b><b>{String(alertsData.length).padStart(2, '0')} ACTIVE ALERTS</b><b>FIREBASE LIVE</b></div>
       <div className="map-filters" role="group" aria-label="Filter map hazards">
         {['All', 'Flood', 'Air Quality', 'Heat'].map((item) => <button key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}</button>)}
       </div>
@@ -227,14 +271,14 @@ function MapCanvas({ title, filter, setFilter, selectedNode, setSelectedNode }) 
   );
 }
 
-function NodeRail({ selectedNode, onSelect }) {
+function NodeRail({ selectedNode, onSelect, nodes }) {
   return (
     <aside className="node-rail">
-      <header><div><span>DELHI SENSOR GRID</span><b>Deployed nodes</b></div><em><i />08 online</em></header>
-      <div className="node-rail-stats"><div><strong>08</strong><span>Reporting</span></div><div><strong>04</strong><span>Hazards</span></div><div><strong>31s</strong><span>Avg. sync</span></div></div>
+      <header><div><span>DELHI SENSOR GRID</span><b>Deployed nodes</b></div><em><i />{nodes.length} online</em></header>
+      <div className="node-rail-stats"><div><strong>{String(nodes.length).padStart(2, '0')}</strong><span>Reporting</span></div><div><strong>{new Set(nodes.map((node) => node.hazard)).size}</strong><span>Hazards</span></div><div><strong>31s</strong><span>Avg. sync</span></div></div>
       <div className="node-list-heading"><span>FIELD REGISTRY</span><b>Risk ranked</b></div>
       <div className="node-list">
-        {delhiNodes.map((node) => {
+        {nodes.map((node) => {
           const Icon = hazardIcons[node.hazard] || Radio;
           return <button key={node.id} className={selectedNode?.id === node.id ? 'selected' : ''} onClick={() => onSelect(node)}><i className={`node-type ${node.status}`}><Icon size={15} /></i><span><small>{node.id} · {node.area}</small><strong>{node.name}</strong><em>Updated {node.updated}</em></span><b>{node.risk}%</b></button>;
         })}
@@ -247,27 +291,27 @@ function ModuleHeader({ eyebrow, title, description, action }) {
   return <header className="module-header"><div><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></div>{action}</header>;
 }
 
-function AlertsPage({ acknowledged, onAcknowledge, onLocate }) {
+function AlertsPage({ acknowledged, onAcknowledge, onLocate, alertsData, nodes }) {
   const [level, setLevel] = useState('All');
-  const filteredAlerts = level === 'All' ? alerts : alerts.filter((alert) => alert.level === level.toLowerCase());
+  const filteredAlerts = level === 'All' ? alertsData : alertsData.filter((alert) => alert.level === level.toLowerCase());
   return (
     <section className="module-page">
       <ModuleHeader eyebrow="INCIDENT OPERATIONS · DELHI NCT" title="Active Alerts" description="AI-ranked events awaiting command-centre action across Delhi districts." action={<div className="module-live"><i />SIMULATED LIVE FEED</div>} />
       <div className="module-metrics"><div><span>Critical</span><strong className="red-text">01</strong><small>Immediate action</small></div><div><span>High</span><strong className="orange-text">02</strong><small>District response</small></div><div><span>Moderate</span><strong>02</strong><small>Enhanced watch</small></div><div><span>Acknowledged</span><strong>{Object.values(acknowledged).filter(Boolean).length}</strong><small>Current session</small></div></div>
       <div className="module-toolbar"><div className="segmented">{['All', 'Critical', 'High', 'Moderate'].map((item) => <button key={item} className={level === item ? 'active' : ''} onClick={() => setLevel(item)}>{item}</button>)}</div><span>{filteredAlerts.length} incidents shown</span></div>
-      <div className="alerts-page-grid">{filteredAlerts.map((alert) => <AlertItem key={alert.id} alert={alert} state={acknowledged[alert.id]} onAcknowledge={onAcknowledge} onLocate={onLocate} />)}</div>
+      <div className="alerts-page-grid">{filteredAlerts.map((alert) => <AlertItem key={alert.id} alert={alert} state={acknowledged[alert.id]} onAcknowledge={onAcknowledge} onLocate={onLocate} nodes={nodes} />)}</div>
     </section>
   );
 }
 
-function SensorsPage({ onLocate }) {
+function SensorsPage({ onLocate, nodes }) {
   const [query, setQuery] = useState('');
-  const visibleNodes = useMemo(() => delhiNodes.filter((node) => `${node.id} ${node.name} ${node.area} ${node.hazard}`.toLowerCase().includes(query.toLowerCase())), [query]);
+  const visibleNodes = useMemo(() => nodes.filter((node) => `${node.id} ${node.name} ${node.area} ${node.hazard}`.toLowerCase().includes(query.toLowerCase())), [nodes, query]);
   return (
     <section className="module-page">
       <ModuleHeader eyebrow="FIELD INFRASTRUCTURE" title="Sensor Grid" description="Live registry of Delhi environmental sensing and edge-intelligence nodes." action={<button className="module-button" onClick={() => setQuery('')}><Radio size={13} />Refresh registry</button>} />
       <div className="module-metrics"><div><span>Total nodes</span><strong>08</strong><small>Across 7 districts</small></div><div><span>Network health</span><strong className="green-text">100%</strong><small>All reporting</small></div><div><span>High risk</span><strong className="orange-text">03</strong><small>Priority watch</small></div><div><span>Median latency</span><strong>31s</strong><small>Last heartbeat</small></div></div>
-      <div className="module-toolbar"><label className="search-box"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search node, district or hazard" /></label><span>{visibleNodes.length} of {delhiNodes.length} nodes</span></div>
+      <div className="module-toolbar"><label className="search-box"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search node, district or hazard" /></label><span>{visibleNodes.length} of {nodes.length} nodes</span></div>
       <div className="sensor-table">
         <div className="sensor-row sensor-head"><span>Node</span><span>District</span><span>Hazard</span><span>Status</span><span>Latest signal</span><span>Risk</span><span>Action</span></div>
         {visibleNodes.map((node) => <div className="sensor-row" key={node.id}><span><b>{node.id}</b><small>{node.name}</small></span><span>{node.area}</span><span>{node.hazard}</span><span><i className={`severity-dot ${node.status}`} />{node.status}</span><span><b>{Object.values(node.readings)[0]}</b><small>{Object.keys(node.readings)[0]}</small></span><span><strong className={`${node.status}-text`}>{node.risk}%</strong></span><span><button onClick={() => onLocate(node.id)}>Locate <ArrowUpRight size={12} /></button></span></div>)}
@@ -276,10 +320,11 @@ function SensorsPage({ onLocate }) {
   );
 }
 
-function AnalyticsPage() {
+function AnalyticsPage({ analyticsData }) {
   const [range, setRange] = useState('24H');
-  const riskTrend = [42, 51, 47, 62, 72, 91, 78, 69, 58, 63, 55, 49];
-  const districts = [['North Delhi', 91], ['Central Delhi', 82], ['East Delhi', 78], ['South West', 59], ['North West', 54]];
+  const riskTrend = analyticsData.riskTrend || fallbackAnalytics.riskTrend;
+  const districts = analyticsData.districts || fallbackAnalytics.districts;
+  const hazardDistribution = analyticsData.hazards || fallbackAnalytics.hazards;
   return (
     <section className="module-page">
       <ModuleHeader eyebrow="DECISION INTELLIGENCE" title="Analytics" description="Cross-hazard patterns, response performance and district-level risk for Delhi." action={<div className="segmented">{['6H', '24H', '7D'].map((item) => <button key={item} className={range === item ? 'active' : ''} onClick={() => setRange(item)}>{item}</button>)}</div>} />
@@ -287,42 +332,87 @@ function AnalyticsPage() {
       <div className="analytics-layout">
         <section className="analytics-panel"><header><div><span>COMPOSITE RISK TREND</span><b>Delhi · {range}</b></div><em>Peak 91%</em></header><div className="bar-chart" aria-label="Composite risk trend">{riskTrend.map((value, index) => <div key={index}><i style={{height:`${value}%`}} className={value >= 80 ? 'critical-bar' : value >= 60 ? 'high-bar' : ''}/><span>{index % 2 === 0 ? `${index * 2}:00` : ''}</span></div>)}</div></section>
         <section className="analytics-panel district-risk"><header><div><span>DISTRICT RISK RANKING</span><b>Highest current score</b></div></header>{districts.map(([name, value]) => <div className="risk-row" key={name}><span>{name}</span><i><b style={{width:`${value}%`}} /></i><strong>{value}%</strong></div>)}</section>
-        <section className="analytics-panel hazard-volume"><header><div><span>EVENT DISTRIBUTION</span><b>By hazard type</b></div></header>{[['Flood / Water', 46, 'cyan'], ['Air quality', 27, 'purple'], ['Heat stress', 17, 'orange'], ['Severe weather', 10, 'slate']].map(([name, value, color]) => <div key={name}><span>{name}</span><i><b className={color} style={{width:`${value}%`}} /></i><strong>{value}%</strong></div>)}</section>
+        <section className="analytics-panel hazard-volume"><header><div><span>EVENT DISTRIBUTION</span><b>By hazard type</b></div></header>{hazardDistribution.map(([name, value, color]) => <div key={name}><span>{name}</span><i><b className={color} style={{width:`${value}%`}} /></i><strong>{value}%</strong></div>)}</section>
       </div>
     </section>
   );
 }
 
-function ReportsPage() {
-  const baseReports = [
-    { id: 'RPT-208', title: 'Delhi Daily Situation Report', scope: 'All districts', created: '24 Aug · 14:00', format: 'JSON' },
-    { id: 'RPT-207', title: 'Yamuna Flood Intelligence Brief', scope: 'North Delhi', created: '24 Aug · 13:30', format: 'JSON' },
-    { id: 'RPT-206', title: 'Air Quality Cluster Analysis', scope: 'East Delhi', created: '24 Aug · 12:45', format: 'JSON' },
-    { id: 'RPT-205', title: 'Sensor Network Health Summary', scope: 'Delhi NCT', created: '24 Aug · 12:00', format: 'JSON' },
-  ];
-  const [reports, setReports] = useState(baseReports);
+function ReportsPage({ reportsData, onGenerateReport, alertsData, nodes }) {
   const [generated, setGenerated] = useState(false);
-  const generateReport = () => {
-    if (!generated) setReports((current) => [{ id: 'RPT-209', title: 'On-demand Command Brief', scope: 'Delhi NCT', created: 'Just now', format: 'JSON' }, ...current]);
-    setGenerated(true);
+  const [generating, setGenerating] = useState(false);
+  const generateReport = async () => {
+    if (generated || generating) return;
+    setGenerating(true);
+    try { await onGenerateReport(); setGenerated(true); } finally { setGenerating(false); }
   };
   const downloadReport = (report) => {
-    const payload = JSON.stringify({ report, generatedBy: 'KAVACH Delhi Command Centre', incidents: alerts, nodes: delhiNodes }, null, 2);
+    const payload = JSON.stringify({ report, generatedBy: 'KAVACH Delhi Command Centre', incidents: alertsData, nodes }, null, 2);
     const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${report.id.toLowerCase()}.json`; anchor.click(); URL.revokeObjectURL(url);
   };
   return (
     <section className="module-page">
-      <ModuleHeader eyebrow="SITUATIONAL REPORTING" title="Reports" description="Command-ready intelligence briefs generated from Delhi field signals and incidents." action={<button className="module-button primary" onClick={generateReport}><FileText size={13} />{generated ? 'Brief generated' : 'Generate brief'}</button>} />
+      <ModuleHeader eyebrow="SITUATIONAL REPORTING" title="Reports" description="Command-ready intelligence briefs generated from Delhi field signals and incidents." action={<button className="module-button primary" onClick={generateReport}><FileText size={13} />{generated ? 'Brief generated' : generating ? 'Saving…' : 'Generate brief'}</button>} />
       <div className="report-callout"><div><span>AUTOMATED COMMAND BRIEF</span><h2>Next scheduled report · 18:00 IST</h2><p>Includes district risk, alert actions, Yamuna telemetry and network health.</p></div><strong>03h 28m</strong></div>
-      <div className="report-table"><div className="report-row report-head"><span>Report</span><span>Scope</span><span>Generated</span><span>Format</span><span>Action</span></div>{reports.map((report) => <div className="report-row" key={report.id}><span><i><FileText size={15} /></i><b>{report.title}</b><small>{report.id}</small></span><span>{report.scope}</span><span>{report.created}</span><span>{report.format}</span><span><button onClick={() => downloadReport(report)}><Download size={13} />Download</button></span></div>)}</div>
+      <div className="report-table"><div className="report-row report-head"><span>Report</span><span>Scope</span><span>Generated</span><span>Format</span><span>Action</span></div>{reportsData.map((report) => <div className="report-row" key={report.id}><span><i><FileText size={15} /></i><b>{report.title}</b><small>{report.id}</small></span><span>{report.scope}</span><span>{report.created}</span><span>{report.format}</span><span><button onClick={() => downloadReport(report)}><Download size={13} />Download</button></span></div>)}</div>
     </section>
   );
 }
 
-function SettingsPage({ theme, setTheme }) {
-  const [rules, setRules] = useState({ escalation: true, offline: true, community: false, edge: true });
-  const toggleRule = (key) => setRules((current) => ({ ...current, [key]: !current[key] }));
+function DeviceAdminModal({ stage, setStage, onAddDevice }) {
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [device, setDevice] = useState({ id: '', name: '', area: 'Central Delhi', hazard: 'Flood', status: 'safe', risk: '20', latitude: '', longitude: '' });
+
+  if (!stage) return null;
+  const close = () => { setStage(null); setPin(''); setPinError(''); setFormError(''); };
+  const verifyPin = (event) => {
+    event.preventDefault();
+    if (pin === '0') { setPinError(''); setStage('form'); }
+    else setPinError('Incorrect admin PIN');
+  };
+  const update = (key, value) => setDevice((current) => ({ ...current, [key]: value }));
+  const setCoordinates = (latitude, longitude) => setDevice((current) => ({ ...current, latitude: String(latitude), longitude: String(longitude) }));
+  const submitDevice = async (event) => {
+    event.preventDefault();
+    const lat = Number(device.latitude); const lng = Number(device.longitude);
+    if (!device.id.trim() || !device.name.trim() || !device.area.trim()) return setFormError('Device ID, name and district are required.');
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return setFormError('Choose a map point or enter valid coordinates.');
+    if (lat < 28.404629 || lat > 28.883446 || lng < 76.838835 || lng > 77.345338) return setFormError('Location must be inside Delhi NCT.');
+    setSaving(true); setFormError('');
+    try {
+      await onAddDevice({
+        id: device.id.trim().toUpperCase(), name: device.name.trim(), area: device.area.trim(), hazard: device.hazard, status: device.status,
+        lat, lng, risk: Math.max(0, Math.min(100, Number(device.risk) || 0)), updated: 'Just now',
+        readings: { Status: 'Commissioned', Signal: 'Awaiting telemetry', Source: 'Firebase' },
+      });
+      close();
+    } catch (error) { setFormError(error.message || 'Could not add device.'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="admin-modal-backdrop" role="dialog" aria-modal="true" aria-label={stage === 'pin' ? 'Admin PIN' : 'Add device'}>
+      {stage === 'pin' ? <form className="pin-card" onSubmit={verifyPin}><button type="button" className="modal-close" onClick={close}><X size={16} /></button><i><LockKeyhole size={22} /></i><span>ADMIN PANEL</span><h2>Enter security PIN</h2><p>Device registration is restricted to authorised command-centre staff.</p><label>ADMIN PIN<input autoFocus type="password" inputMode="numeric" value={pin} onChange={(event) => setPin(event.target.value)} placeholder="Enter PIN" /></label>{pinError && <em>{pinError}</em>}<button className="admin-primary" type="submit">Continue <ChevronRight size={14} /></button></form>
+      : <form className="device-card" onSubmit={submitDevice}><header><div><span>ADMIN PANEL · FIREBASE</span><h2>Add field device</h2><p>Register a node and capture its Delhi deployment location.</p></div><button type="button" onClick={close}><X size={17} /></button></header><div className="device-form-body"><div className="device-fields">
+        <label>DEVICE ID<input value={device.id} onChange={(event) => update('id', event.target.value)} placeholder="e.g. FLOOD-021" /></label>
+        <label>DEVICE NAME<input value={device.name} onChange={(event) => update('name', event.target.value)} placeholder="Deployment location" /></label>
+        <label>DISTRICT / AREA<input value={device.area} onChange={(event) => update('area', event.target.value)} /></label>
+        <label>HAZARD PROFILE<select value={device.hazard} onChange={(event) => update('hazard', event.target.value)}><option>Flood</option><option>Air Quality</option><option>Heat</option><option>Weather</option></select></label>
+        <label>INITIAL STATUS<select value={device.status} onChange={(event) => update('status', event.target.value)}><option value="safe">Normal</option><option value="moderate">Moderate</option><option value="high">High</option><option value="critical">Critical</option></select></label>
+        <label>RISK SCORE<input type="number" min="0" max="100" value={device.risk} onChange={(event) => update('risk', event.target.value)} /></label>
+        <label>LATITUDE<input type="number" step="0.000001" value={device.latitude} onChange={(event) => update('latitude', event.target.value)} placeholder="28.613900" /></label>
+        <label>LONGITUDE<input type="number" step="0.000001" value={device.longitude} onChange={(event) => update('longitude', event.target.value)} placeholder="77.209000" /></label>
+      </div><DeviceLocationPicker latitude={device.latitude === '' ? NaN : Number(device.latitude)} longitude={device.longitude === '' ? NaN : Number(device.longitude)} onChange={setCoordinates} />{formError && <div className="device-form-error"><AlertTriangle size={14} />{formError}</div>}</div><footer><span><Server size={13} />Will save to Firebase <code>{`/devices/${device.id || 'DEVICE-ID'}`}</code></span><button type="button" onClick={close}>Cancel</button><button type="submit" className="admin-primary" disabled={saving}><Save size={14} />{saving ? 'Saving…' : 'Add device'}</button></footer></form>}
+    </div>
+  );
+}
+
+function SettingsPage({ theme, setTheme, settingsData, onUpdateSetting, onAddDevice, nodes, firebaseStatus }) {
+  const [adminStage, setAdminStage] = useState(null);
   const items = [
     ['escalation', 'Critical risk escalation', 'Notify the district EOC automatically above 85% risk.'],
     ['offline', 'Offline node warning', 'Create an alert after three missed sensor heartbeats.'],
@@ -334,9 +424,11 @@ function SettingsPage({ theme, setTheme }) {
       <ModuleHeader eyebrow="SYSTEM CONFIGURATION" title="Settings" description="Display preferences and Delhi command-centre operating rules." />
       <div className="settings-layout">
         <section className="settings-section"><header><span>APPEARANCE</span><h2>Interface theme</h2></header><div className="theme-choice"><button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')}><Sun size={18} /><span>Light mode</span><small>Bright operational workspace</small></button><button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')}><Moon size={18} /><span>Dark mode</span><small>Low-light command room</small></button></div></section>
-        <section className="settings-section"><header><span>AUTOMATION</span><h2>Rules & alerts</h2></header>{items.map(([key, title, detail]) => <button className="setting-toggle" key={key} onClick={() => toggleRule(key)}><span><b>{title}</b><small>{detail}</small></span>{rules[key] ? <ToggleRight size={25} className="toggle-on" /> : <ToggleLeft size={25} />}</button>)}</section>
+        <section className="settings-section"><header><span>AUTOMATION · FIREBASE</span><h2>Rules & alerts</h2></header>{items.map(([key, title, detail]) => <button className="setting-toggle" key={key} onClick={() => onUpdateSetting(key, !settingsData[key])}><span><b>{title}</b><small>{detail}</small></span>{settingsData[key] ? <ToggleRight size={25} className="toggle-on" /> : <ToggleLeft size={25} />}</button>)}</section>
+        <section className="settings-section admin-panel"><header><span>ADMIN PANEL</span><h2>Device management</h2></header><div><i><Server size={21} /></i><span><b>Firebase device registry</b><small>{nodes.length} devices · Database {firebaseStatus}</small></span><button onClick={() => setAdminStage('pin')}><Plus size={14} />Add device</button></div></section>
         <section className="settings-section thresholds"><header><span>AI RISK LEVELS</span><h2>Severity thresholds</h2></header>{[['Normal', '0–34%', 'safe'], ['Moderate', '35–59%', 'moderate'], ['High', '60–84%', 'high'], ['Critical', '85–100%', 'critical']].map(([label, value, level]) => <div key={label}><span><i className={`severity-dot ${level}`} />{label}</span><strong>{value}</strong></div>)}</section>
       </div>
+      <DeviceAdminModal stage={adminStage} setStage={setAdminStage} onAddDevice={onAddDevice} />
     </section>
   );
 }
@@ -347,6 +439,12 @@ export default function Home() {
   const [acknowledged, setAcknowledged] = useState({});
   const [activeView, setActiveView] = useState('Command Centre');
   const [theme, setTheme] = useState('dark');
+  const [nodes, setNodes] = useState(delhiNodes);
+  const [alertsData, setAlertsData] = useState(alerts);
+  const [analyticsData, setAnalyticsData] = useState(fallbackAnalytics);
+  const [reportsData, setReportsData] = useState(fallbackReports);
+  const [settingsData, setSettingsData] = useState(fallbackSettings);
+  const [firebaseStatus, setFirebaseStatus] = useState('connecting');
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem('kavach-theme');
@@ -355,26 +453,73 @@ export default function Home() {
 
   useEffect(() => { window.localStorage.setItem('kavach-theme', theme); }, [theme]);
 
+  useEffect(() => {
+    let mounted = true;
+    const loadData = async () => {
+      try {
+        const data = await firebaseRequest('');
+        if (!mounted) return;
+        if (!data) { setFirebaseStatus('empty'); return; }
+        const nextNodes = toCollection(data.devices, delhiNodes);
+        const nextAlerts = toCollection(data.alerts, alerts);
+        setNodes(nextNodes);
+        setAlertsData(nextAlerts);
+        setAnalyticsData(data.analytics || fallbackAnalytics);
+        setReportsData(toCollection(data.reports, fallbackReports).sort((a, b) => String(b.id).localeCompare(String(a.id))));
+        setSettingsData({ ...fallbackSettings, ...(data.settings || {}) });
+        setAcknowledged(Object.fromEntries(nextAlerts.filter((alert) => alert.acknowledged).map((alert) => [alert.id, true])));
+        setFirebaseStatus('connected');
+      } catch { if (mounted) setFirebaseStatus('error'); }
+    };
+    loadData();
+    const timer = window.setInterval(loadData, 15000);
+    return () => { mounted = false; window.clearInterval(timer); };
+  }, []);
+
   const locateNode = (nodeId) => {
-    const node = delhiNodes.find((item) => item.id === nodeId);
+    const node = nodes.find((item) => item.id === nodeId);
     if (node) setSelectedNode(node);
   };
   const locateNodeAndOpenMap = (nodeId) => { locateNode(nodeId); setActiveView('Live Map'); };
-  const onAcknowledge = (id) => setAcknowledged((current) => ({ ...current, [id]: !current[id] }));
+  const onAcknowledge = async (id) => {
+    const nextValue = !acknowledged[id];
+    setAcknowledged((current) => ({ ...current, [id]: nextValue }));
+    setAlertsData((current) => current.map((alert) => alert.id === id ? { ...alert, acknowledged: nextValue } : alert));
+    try { await firebaseRequest(`alerts/${encodeURIComponent(id)}/acknowledged`, { method: 'PUT', body: JSON.stringify(nextValue) }); }
+    catch { setFirebaseStatus('error'); }
+  };
+  const addDevice = async (device) => {
+    if (nodes.some((node) => node.id === device.id)) throw new Error('A device with this ID already exists.');
+    const key = device.id.replace(/[.#$\[\]\/]/g, '-');
+    await firebaseRequest(`devices/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(device) });
+    setNodes((current) => [...current, device]);
+    setFirebaseStatus('connected');
+  };
+  const updateSetting = async (key, value) => {
+    setSettingsData((current) => ({ ...current, [key]: value }));
+    try { await firebaseRequest(`settings/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(value) }); setFirebaseStatus('connected'); }
+    catch { setFirebaseStatus('error'); }
+  };
+  const generateReport = async () => {
+    const report = { id: `RPT-${Date.now().toString().slice(-6)}`, title: 'On-demand Command Brief', scope: 'Delhi NCT', created: 'Just now', format: 'JSON' };
+    await firebaseRequest(`reports/${report.id}`, { method: 'PUT', body: JSON.stringify(report) });
+    setReportsData((current) => [report, ...current]);
+    setFirebaseStatus('connected');
+  };
 
   const renderModule = () => {
-    if (activeView === 'Alerts') return <AlertsPage acknowledged={acknowledged} onAcknowledge={onAcknowledge} onLocate={locateNodeAndOpenMap} />;
-    if (activeView === 'Sensor Grid') return <SensorsPage onLocate={locateNodeAndOpenMap} />;
-    if (activeView === 'Analytics') return <AnalyticsPage />;
-    if (activeView === 'Reports') return <ReportsPage />;
-    return <SettingsPage theme={theme} setTheme={setTheme} />;
+    if (activeView === 'Alerts') return <AlertsPage acknowledged={acknowledged} onAcknowledge={onAcknowledge} onLocate={locateNodeAndOpenMap} alertsData={alertsData} nodes={nodes} />;
+    if (activeView === 'Sensor Grid') return <SensorsPage onLocate={locateNodeAndOpenMap} nodes={nodes} />;
+    if (activeView === 'Analytics') return <AnalyticsPage analyticsData={analyticsData} />;
+    if (activeView === 'Reports') return <ReportsPage reportsData={reportsData} onGenerateReport={generateReport} alertsData={alertsData} nodes={nodes} />;
+    return <SettingsPage theme={theme} setTheme={setTheme} settingsData={settingsData} onUpdateSetting={updateSetting} onAddDevice={addDevice} nodes={nodes} firebaseStatus={firebaseStatus} />;
   };
 
   return (
     <main className={`command-shell theme-${theme}`}>
-      <NavigationRail activeView={activeView} setActiveView={setActiveView} theme={theme} setTheme={setTheme} />
-      {activeView === 'Command Centre' && <><MapCanvas title="Command Centre" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} /><AlertRail states={acknowledged} onAcknowledge={onAcknowledge} onLocate={locateNode} /></>}
-      {activeView === 'Live Map' && <><MapCanvas title="Live Map" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} /><NodeRail selectedNode={selectedNode} onSelect={setSelectedNode} /></>}
+      <NavigationRail activeView={activeView} setActiveView={setActiveView} theme={theme} setTheme={setTheme} firebaseStatus={firebaseStatus} />
+      {activeView === 'Command Centre' && <><MapCanvas title="Command Centre" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} alertsData={alertsData} /><AlertRail states={acknowledged} onAcknowledge={onAcknowledge} onLocate={locateNode} alertsData={alertsData} nodes={nodes} /></>}
+      {activeView === 'Live Map' && <><MapCanvas title="Live Map" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} alertsData={alertsData} /><NodeRail selectedNode={selectedNode} onSelect={setSelectedNode} nodes={nodes} /></>}
       {!['Command Centre', 'Live Map'].includes(activeView) && renderModule()}
     </main>
   );
