@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Circle, CircleMarker, MapContainer, Polygon, TileLayer, Tooltip, useMap } from 'react-leaflet';
-import { Globe2, LocateFixed, MapPin, Minus, Moon, Plus, Sun } from 'lucide-react';
+import { Circle, CircleMarker, MapContainer, Polygon, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { Check, ChevronLeft, ChevronRight, Globe2, LocateFixed, MapPin, MapPinned, Minus, Moon, Plus, Sun, Trash2 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 const statusColors = { safe: '#16805d', moderate: '#d49614', high: '#e46e2e', critical: '#cf3741' };
@@ -97,7 +97,23 @@ function MapViewport({ selectedNode }) {
   return null;
 }
 
-function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible }) {
+function LocationPicker({ enabled, onPick }) {
+  const map = useMapEvents({
+    click(event) {
+      if (!enabled) return;
+      onPick({ lat: Number(event.latlng.lat.toFixed(6)), lng: Number(event.latlng.lng.toFixed(6)) });
+    },
+  });
+
+  useEffect(() => {
+    const container = map.getContainer();
+    container.classList.toggle('location-picking', enabled);
+    return () => container.classList.remove('location-picking');
+  }, [enabled, map]);
+  return null;
+}
+
+function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible, collapsed, setCollapsed, picking, setPicking, savedLocation, clearLocation }) {
   const map = useMap();
   const controlRef = useRef(null);
 
@@ -108,7 +124,10 @@ function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible }) {
   }, []);
 
   return (
-    <div className="map-tools" ref={controlRef}>
+    <div className={`map-tools ${collapsed ? 'collapsed' : ''}`} ref={controlRef}>
+      <button className="map-tools-toggle" onClick={() => setCollapsed((current) => !current)} aria-label={collapsed ? 'Open map tools' : 'Collapse map tools'} title={collapsed ? 'Open map tools' : 'Collapse map tools'}>
+        {collapsed ? <ChevronLeft size={17} /> : <ChevronRight size={17} />}
+      </button>
       <span className="map-tools-label">MAP STYLE</span>
       <div className="map-style-options">
         {Object.entries(mapStyles).map(([key, item]) => {
@@ -119,6 +138,10 @@ function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible }) {
       <button className={`label-toggle ${labelsVisible ? 'on' : ''}`} onClick={() => setLabelsVisible((current) => !current)} aria-pressed={labelsVisible}>
         <MapPin size={14} /><span>Place labels</span><b>{labelsVisible ? 'ON' : 'OFF'}</b>
       </button>
+      <button className={`location-picker-button ${picking ? 'picking' : ''} ${savedLocation ? 'saved' : ''}`} onClick={() => setPicking((current) => !current)} aria-pressed={picking}>
+        {savedLocation && !picking ? <Check size={14} /> : <MapPinned size={14} />}<span>{picking ? 'Click a point on map' : savedLocation ? 'Change saved location' : 'Pick a location'}</span><b>{picking ? 'PICKING' : savedLocation ? 'SAVED' : 'SET'}</b>
+      </button>
+      {savedLocation && <div className="saved-location"><MapPin size={13} /><span><b>Saved point</b><small>{savedLocation.lat.toFixed(5)}, {savedLocation.lng.toFixed(5)}</small></span><button onClick={clearLocation} aria-label="Clear saved location" title="Clear saved location"><Trash2 size={13} /></button></div>}
       <div className="zoom-tools" aria-label="Map zoom controls">
         <button onClick={() => map.zoomIn()} aria-label="Zoom in" title="Zoom in"><Plus size={16} /></button>
         <button onClick={() => map.zoomOut()} aria-label="Zoom out" title="Zoom out"><Minus size={16} /></button>
@@ -131,8 +154,30 @@ function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible }) {
 export default function HazardMap({ nodes, filter, selectedNode, onSelect }) {
   const [mapStyle, setMapStyle] = useState('earth');
   const [labelsVisible, setLabelsVisible] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [savedLocation, setSavedLocation] = useState(null);
   const visibleNodes = nodes.filter((node) => filter === 'All' || node.hazard === filter);
   const activeStyle = mapStyles[mapStyle];
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('kavach-saved-location'));
+      if (Number.isFinite(saved?.lat) && Number.isFinite(saved?.lng)) setSavedLocation(saved);
+    } catch { /* Ignore an invalid saved browser value. */ }
+  }, []);
+
+  const saveLocation = (location) => {
+    setSavedLocation(location);
+    setPicking(false);
+    window.localStorage.setItem('kavach-saved-location', JSON.stringify(location));
+  };
+  const clearLocation = () => {
+    setSavedLocation(null);
+    setPicking(false);
+    window.localStorage.removeItem('kavach-saved-location');
+  };
+
   return (
     <MapContainer bounds={DELHI_BOUNDS} boundsOptions={{ padding: [24, 24] }} minZoom={9} maxZoom={18} maxBounds={DELHI_BOUNDS} maxBoundsViscosity={0.72} zoomControl={false} scrollWheelZoom doubleClickZoom boxZoom keyboard className={`leaflet-map map-${mapStyle}`}>
       <TileLayer key={`${mapStyle}-base`} attribution={activeStyle.attribution} url={activeStyle.base} zIndex={200} />
@@ -147,8 +192,10 @@ export default function HazardMap({ nodes, filter, selectedNode, onSelect }) {
           <Tooltip direction="top" offset={[0, -8]} opacity={1}><div className="map-tooltip"><b>{node.name}</b><span>{node.id} · {node.area}</span><em>{node.risk}% {node.hazard} risk</em></div></Tooltip>
         </CircleMarker>
       ))}
+      {savedLocation && <CircleMarker center={[savedLocation.lat, savedLocation.lng]} radius={9} pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#1799a5', fillOpacity: 1 }}><Tooltip permanent direction="top" offset={[0, -10]} opacity={1}><div className="saved-map-tag"><b>Saved location</b><span>{savedLocation.lat.toFixed(5)}, {savedLocation.lng.toFixed(5)}</span></div></Tooltip></CircleMarker>}
       <MapViewport selectedNode={selectedNode} />
-      <MapTools mapStyle={mapStyle} setMapStyle={setMapStyle} labelsVisible={labelsVisible} setLabelsVisible={setLabelsVisible} />
+      <LocationPicker enabled={picking} onPick={saveLocation} />
+      <MapTools mapStyle={mapStyle} setMapStyle={setMapStyle} labelsVisible={labelsVisible} setLabelsVisible={setLabelsVisible} collapsed={collapsed} setCollapsed={setCollapsed} picking={picking} setPicking={setPicking} savedLocation={savedLocation} clearLocation={clearLocation} />
     </MapContainer>
   );
 }
