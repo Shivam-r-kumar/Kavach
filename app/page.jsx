@@ -437,7 +437,7 @@ function SensorsPage({ onLocate, nodes }) {
   return (
     <section className="module-page">
       <ModuleHeader eyebrow="FIELD INFRASTRUCTURE" title="Sensor Grid" description="Live registry of Delhi environmental sensing and edge-intelligence nodes." action={<button className="module-button" onClick={() => setQuery('')}><Radio size={13} />Refresh registry</button>} />
-      <div className="module-metrics"><div><span>Total nodes</span><strong>08</strong><small>Across 7 districts</small></div><div><span>Network health</span><strong className="green-text">100%</strong><small>All reporting</small></div><div><span>High risk</span><strong className="orange-text">03</strong><small>Priority watch</small></div><div><span>Median latency</span><strong>31s</strong><small>Last heartbeat</small></div></div>
+      <div className="module-metrics"><div><span>Total nodes</span><strong>{String(nodes.length).padStart(2, '0')}</strong><small>Firebase registry</small></div><div><span>Network health</span><strong className="green-text">{nodes.length ? '100%' : '—'}</strong><small>{nodes.length ? 'All reporting' : 'No devices deployed'}</small></div><div><span>High risk</span><strong className="orange-text">{String(nodes.filter((node) => ['high', 'critical'].includes(node.status)).length).padStart(2, '0')}</strong><small>Priority watch</small></div><div><span>Median latency</span><strong>{nodes.length ? '31s' : '—'}</strong><small>Last heartbeat</small></div></div>
       <div className="module-toolbar"><label className="search-box"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search node, district or hazard" /></label><span>{visibleNodes.length} of {nodes.length} nodes</span></div>
       <div className="sensor-table">
         <div className="sensor-row sensor-head"><span>Node</span><span>District</span><span>Hazard</span><span>Status</span><span>Latest signal</span><span>Risk</span><span>Action</span></div>
@@ -629,7 +629,7 @@ export default function Home() {
   const [acknowledged, setAcknowledged] = useState({});
   const [activeView, setActiveView] = useState('Command Centre');
   const [theme, setTheme] = useState('dark');
-  const [nodes, setNodes] = useState(delhiNodes);
+  const [nodes, setNodes] = useState([]);
   const [alertsData, setAlertsData] = useState(alerts);
   const [analyticsData, setAnalyticsData] = useState(fallbackAnalytics);
   const [reportsData, setReportsData] = useState(fallbackReports);
@@ -650,8 +650,8 @@ export default function Home() {
       try {
         const data = await firebaseRequest('');
         if (!mounted) return;
-        if (!data) { setFirebaseStatus('empty'); return; }
-        const nextNodes = toCollection(data.devices, delhiNodes);
+        if (!data) { setNodes([]); setFirebaseStatus('empty'); return; }
+        const nextNodes = toCollection(data.devices, []);
         const nextAlerts = toCollection(data.alerts, alerts);
         setNodes(nextNodes);
         setAlertsData(nextAlerts);
