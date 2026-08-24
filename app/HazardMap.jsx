@@ -241,9 +241,15 @@ export default function HazardMap({ nodes, zones = [], filter, selectedNode, onS
         <Circle key={`${node.id}-zone`} center={[node.lat, node.lng]} radius={node.status === 'critical' ? 4200 : 2800} pathOptions={{ color: statusColors[node.status], fillColor: statusColors[node.status], fillOpacity: 0.09, opacity: 0.65, weight: 1.2 }} />
       ))}
       {visibleNodes.map((node) => (
-        <Marker key={node.id} position={[node.lat, node.lng]} icon={createNodeIcon(node, selectedNode?.id === node.id)} eventHandlers={{ click: () => onSelect(node) }}>
-          <Tooltip direction="top" opacity={1}><div className="map-tooltip"><b>{node.name}</b><span>{node.id} · {node.area}</span><em>{node.risk}% {node.hazard} risk</em></div></Tooltip>
-        </Marker>
+        node.status === 'safe' ? (
+          <CircleMarker key={node.id} center={[node.lat, node.lng]} radius={selectedNode?.id === node.id ? 8 : 5.5} eventHandlers={{ click: () => onSelect(node) }} pathOptions={{ color: '#ffffff', weight: selectedNode?.id === node.id ? 3 : 2, fillColor: statusColors.safe, fillOpacity: 1 }}>
+            <Tooltip direction="top" offset={[0, -7]} opacity={1}><div className="map-tooltip"><b>{node.name}</b><span>{node.id} · {node.area}</span><em>Normal · {node.hazard} monitoring</em></div></Tooltip>
+          </CircleMarker>
+        ) : (
+          <Marker key={node.id} position={[node.lat, node.lng]} icon={createNodeIcon(node, selectedNode?.id === node.id)} eventHandlers={{ click: () => onSelect(node) }}>
+            <Tooltip direction="top" opacity={1}><div className="map-tooltip"><b>{node.name}</b><span>{node.id} · {node.area}</span><em>{node.risk}% {node.hazard} risk</em></div></Tooltip>
+          </Marker>
+        )
       ))}
       {savedLocation && <CircleMarker center={[savedLocation.lat, savedLocation.lng]} radius={9} pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#1799a5', fillOpacity: 1 }}><Tooltip permanent direction="top" offset={[0, -10]} opacity={1}><div className="saved-map-tag"><b>Saved location</b><span>{savedLocation.lat.toFixed(5)}, {savedLocation.lng.toFixed(5)}</span></div></Tooltip></CircleMarker>}
       <MapViewport selectedNode={selectedNode} />
