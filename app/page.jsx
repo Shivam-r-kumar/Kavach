@@ -161,6 +161,51 @@ const fallbackReports = [
 
 const fallbackSettings = { escalation: true, offline: true, community: false, edge: true };
 
+const fallbackZones = [
+  {
+    id: 'ZONE-1', name: 'North / North-West', short: 'North · NW', color: '#ef8d44',
+    areas: ['Narela', 'Bawana', 'Alipur', 'Rohini'],
+    hazards: ['Forest / grass fire', 'Dust', 'Industrial pollution'],
+    label: [28.787, 77.085],
+    positions: [[28.883, 77.083], [28.856, 77.214], [28.797, 77.2], [28.771, 77.233], [28.721, 77.2], [28.7, 77.16], [28.69, 77.1], [28.699, 76.968], [28.712, 76.948], [28.768, 76.956], [28.821, 76.98], [28.84, 77.02]],
+  },
+  {
+    id: 'ZONE-2', name: 'West / South-West', short: 'West · SW', color: '#55b7d6',
+    areas: ['Mundka', 'Najafgarh', 'Dwarka'],
+    hazards: ['Flooding / waterlogging', 'Industrial pollution', 'Dust'],
+    label: [28.596, 77.015],
+    positions: [[28.699, 76.968], [28.69, 77.1], [28.67, 77.12], [28.62, 77.15], [28.56, 77.13], [28.511, 77.099], [28.505, 76.953], [28.525, 76.877], [28.583, 76.839], [28.633, 76.944], [28.67, 76.937]],
+  },
+  {
+    id: 'ZONE-3', name: 'Central Delhi', short: 'Central core', color: '#f2c94c',
+    areas: ['Central Delhi', 'New Delhi'],
+    hazards: ['Air pollution', 'Heat', 'Traffic monitoring'],
+    label: [28.64, 77.215],
+    positions: [[28.69, 77.1], [28.721, 77.2], [28.69, 77.28], [28.61, 77.28], [28.56, 77.2], [28.56, 77.13], [28.62, 77.15], [28.67, 77.12]],
+  },
+  {
+    id: 'ZONE-4', name: 'East / North-East', short: 'East · NE', color: '#b06bd3',
+    areas: ['Shahdara', 'Yamuna east bank'],
+    hazards: ['Floods', 'Yamuna risk', 'Dense urban pollution'],
+    label: [28.708, 77.295],
+    positions: [[28.856, 77.214], [28.823, 77.224], [28.797, 77.2], [28.771, 77.233], [28.721, 77.2], [28.69, 77.28], [28.61, 77.28], [28.59, 77.309], [28.605, 77.341], [28.662, 77.32], [28.713, 77.331], [28.77, 77.337], [28.83, 77.28]],
+  },
+  {
+    id: 'ZONE-5', name: 'South / South-West', short: 'South · SW', color: '#72bd69',
+    areas: ['Vasant Kunj', 'Mehrauli', 'Delhi Ridge'],
+    hazards: ['Forest fire', 'Heat', 'Dust'],
+    label: [28.492, 77.175],
+    positions: [[28.56, 77.13], [28.56, 77.2], [28.58, 77.25], [28.52, 77.27], [28.49, 77.272], [28.46, 77.24], [28.41, 77.218], [28.406, 77.171], [28.44, 77.13], [28.473, 77.112], [28.511, 77.099]],
+  },
+  {
+    id: 'ZONE-6', name: 'South-East', short: 'South-East', color: '#e05d74',
+    areas: ['Okhla', 'Badarpur', 'Tughlakabad border'],
+    hazards: ['Industrial pollution', 'Yamuna / flood risk', 'Heat'],
+    label: [28.53, 77.295],
+    positions: [[28.61, 77.28], [28.59, 77.309], [28.54, 77.321], [28.513, 77.345], [28.483, 77.314], [28.49, 77.272], [28.52, 77.27], [28.58, 77.25]],
+  },
+];
+
 const toCollection = (value, fallback) => {
   if (!value) return fallback;
   const rows = Array.isArray(value) ? value.filter(Boolean) : Object.values(value);
@@ -256,10 +301,10 @@ function AlertRail({ states, onAcknowledge, onLocate, alertsData, nodes }) {
   );
 }
 
-function MapCanvas({ title, filter, setFilter, selectedNode, setSelectedNode, nodes, alertsData }) {
+function MapCanvas({ title, filter, setFilter, selectedNode, setSelectedNode, nodes, zones, alertsData }) {
   return (
     <section className="map-canvas" aria-label={`Delhi ${title} map`}>
-      <HazardMap nodes={nodes} filter={filter} selectedNode={selectedNode} onSelect={setSelectedNode} />
+      <HazardMap nodes={nodes} zones={zones} filter={filter} selectedNode={selectedNode} onSelect={setSelectedNode} />
       <div className="map-identity"><div className="delhi-seal"><ShieldCheck size={18} /></div><div><span>KAVACH · DELHI</span><h1>{title}</h1></div></div>
       <div className="map-status"><span><i />{String(nodes.length).padStart(2, '0')} nodes deployed</span><b>10 DISTRICTS</b><b>{String(alertsData.length).padStart(2, '0')} ACTIVE ALERTS</b><b>FIREBASE LIVE</b></div>
       <div className="map-filters" role="group" aria-label="Filter map hazards">
@@ -444,6 +489,7 @@ export default function Home() {
   const [analyticsData, setAnalyticsData] = useState(fallbackAnalytics);
   const [reportsData, setReportsData] = useState(fallbackReports);
   const [settingsData, setSettingsData] = useState(fallbackSettings);
+  const [zones, setZones] = useState(fallbackZones);
   const [firebaseStatus, setFirebaseStatus] = useState('connecting');
 
   useEffect(() => {
@@ -467,6 +513,7 @@ export default function Home() {
         setAnalyticsData(data.analytics || fallbackAnalytics);
         setReportsData(toCollection(data.reports, fallbackReports).sort((a, b) => String(b.id).localeCompare(String(a.id))));
         setSettingsData({ ...fallbackSettings, ...(data.settings || {}) });
+        setZones(toCollection(data.zones, fallbackZones));
         setAcknowledged(Object.fromEntries(nextAlerts.filter((alert) => alert.acknowledged).map((alert) => [alert.id, true])));
         setFirebaseStatus('connected');
       } catch { if (mounted) setFirebaseStatus('error'); }
@@ -518,8 +565,8 @@ export default function Home() {
   return (
     <main className={`command-shell theme-${theme}`}>
       <NavigationRail activeView={activeView} setActiveView={setActiveView} theme={theme} setTheme={setTheme} firebaseStatus={firebaseStatus} />
-      {activeView === 'Command Centre' && <><MapCanvas title="Command Centre" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} alertsData={alertsData} /><AlertRail states={acknowledged} onAcknowledge={onAcknowledge} onLocate={locateNode} alertsData={alertsData} nodes={nodes} /></>}
-      {activeView === 'Live Map' && <><MapCanvas title="Live Map" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} alertsData={alertsData} /><NodeRail selectedNode={selectedNode} onSelect={setSelectedNode} nodes={nodes} /></>}
+      {activeView === 'Command Centre' && <><MapCanvas title="Command Centre" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} zones={zones} alertsData={alertsData} /><AlertRail states={acknowledged} onAcknowledge={onAcknowledge} onLocate={locateNode} alertsData={alertsData} nodes={nodes} /></>}
+      {activeView === 'Live Map' && <><MapCanvas title="Live Map" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} zones={zones} alertsData={alertsData} /><NodeRail selectedNode={selectedNode} onSelect={setSelectedNode} nodes={nodes} /></>}
       {!['Command Centre', 'Live Map'].includes(activeView) && renderModule()}
     </main>
   );

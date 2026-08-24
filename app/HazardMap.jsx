@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Circle, CircleMarker, MapContainer, Polygon, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
-import { Check, ChevronLeft, ChevronRight, Globe2, LocateFixed, MapPin, MapPinned, Minus, Moon, Plus, Sun, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Globe2, Layers3, LocateFixed, MapPin, MapPinned, Minus, Moon, Plus, Sun, Trash2 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 const statusColors = { safe: '#16805d', moderate: '#d49614', high: '#e46e2e', critical: '#cf3741' };
@@ -113,7 +113,7 @@ function LocationPicker({ enabled, onPick }) {
   return null;
 }
 
-function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible, collapsed, setCollapsed, picking, setPicking, savedLocation, clearLocation }) {
+function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible, zonesVisible, setZonesVisible, collapsed, setCollapsed, picking, setPicking, savedLocation, clearLocation }) {
   const map = useMap();
   const controlRef = useRef(null);
 
@@ -138,6 +138,9 @@ function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible, coll
       <button className={`label-toggle ${labelsVisible ? 'on' : ''}`} onClick={() => setLabelsVisible((current) => !current)} aria-pressed={labelsVisible}>
         <MapPin size={14} /><span>Place labels</span><b>{labelsVisible ? 'ON' : 'OFF'}</b>
       </button>
+      <button className={`label-toggle ${zonesVisible ? 'on' : ''}`} onClick={() => setZonesVisible((current) => !current)} aria-pressed={zonesVisible}>
+        <Layers3 size={14} /><span>Operational zones</span><b>{zonesVisible ? 'ON' : 'OFF'}</b>
+      </button>
       <button className={`location-picker-button ${picking ? 'picking' : ''} ${savedLocation ? 'saved' : ''}`} onClick={() => setPicking((current) => !current)} aria-pressed={picking}>
         {savedLocation && !picking ? <Check size={14} /> : <MapPinned size={14} />}<span>{picking ? 'Click a point on map' : savedLocation ? 'Change saved location' : 'Pick a location'}</span><b>{picking ? 'PICKING' : savedLocation ? 'SAVED' : 'SET'}</b>
       </button>
@@ -151,9 +154,10 @@ function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible, coll
   );
 }
 
-export default function HazardMap({ nodes, filter, selectedNode, onSelect }) {
+export default function HazardMap({ nodes, zones = [], filter, selectedNode, onSelect }) {
   const [mapStyle, setMapStyle] = useState('earth');
   const [labelsVisible, setLabelsVisible] = useState(true);
+  const [zonesVisible, setZonesVisible] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [picking, setPicking] = useState(false);
   const [savedLocation, setSavedLocation] = useState(null);
@@ -182,6 +186,21 @@ export default function HazardMap({ nodes, filter, selectedNode, onSelect }) {
     <MapContainer bounds={DELHI_BOUNDS} boundsOptions={{ padding: [24, 24] }} minZoom={9} maxZoom={18} maxBounds={DELHI_BOUNDS} maxBoundsViscosity={0.72} zoomControl={false} scrollWheelZoom doubleClickZoom boxZoom keyboard className={`leaflet-map map-${mapStyle}`}>
       <TileLayer key={`${mapStyle}-base`} attribution={activeStyle.attribution} url={activeStyle.base} zIndex={200} />
       {labelsVisible && <TileLayer key={`${mapStyle}-labels`} attribution={activeStyle.attribution} url={activeStyle.labels} zIndex={350} />}
+      {zonesVisible && zones.map((zone) => (
+        <Polygon
+          key={zone.id}
+          positions={zone.positions}
+          interactive={false}
+          pathOptions={{ color: zone.color, fillColor: zone.color, weight: 0.85, opacity: 0.48, fillOpacity: mapStyle === 'earth' ? 0.22 : 0.16 }}
+        />
+      ))}
+      {zonesVisible && zones.map((zone) => (
+        <CircleMarker key={`${zone.id}-label`} center={zone.label} radius={1} pathOptions={{ opacity: 0, fillOpacity: 0 }}>
+          <Tooltip permanent direction="center" className="zone-map-label" opacity={1}>
+            <div className="zone-tag"><b>{zone.id.replace('ZONE-', 'Z')}</b><span>{zone.short || zone.name}</span></div>
+          </Tooltip>
+        </CircleMarker>
+      ))}
       <Polygon positions={DELHI_BORDER} interactive={false} pathOptions={{ color: mapStyle === 'light' ? '#ffffff' : '#071016', weight: 7, opacity: mapStyle === 'earth' ? 0.82 : 0.62, fillColor: '#32bac7', fillOpacity: 0.025 }} />
       <Polygon positions={DELHI_BORDER} interactive={false} pathOptions={{ color: mapStyle === 'light' ? '#087c88' : '#54e4ed', weight: 2.4, opacity: 0.98, dashArray: '9 5', fillColor: '#32bac7', fillOpacity: mapStyle === 'earth' ? 0.045 : 0.02 }} />
       {visibleNodes.filter((node) => ['critical', 'high'].includes(node.status)).map((node) => (
@@ -195,7 +214,7 @@ export default function HazardMap({ nodes, filter, selectedNode, onSelect }) {
       {savedLocation && <CircleMarker center={[savedLocation.lat, savedLocation.lng]} radius={9} pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#1799a5', fillOpacity: 1 }}><Tooltip permanent direction="top" offset={[0, -10]} opacity={1}><div className="saved-map-tag"><b>Saved location</b><span>{savedLocation.lat.toFixed(5)}, {savedLocation.lng.toFixed(5)}</span></div></Tooltip></CircleMarker>}
       <MapViewport selectedNode={selectedNode} />
       <LocationPicker enabled={picking} onPick={saveLocation} />
-      <MapTools mapStyle={mapStyle} setMapStyle={setMapStyle} labelsVisible={labelsVisible} setLabelsVisible={setLabelsVisible} collapsed={collapsed} setCollapsed={setCollapsed} picking={picking} setPicking={setPicking} savedLocation={savedLocation} clearLocation={clearLocation} />
+      <MapTools mapStyle={mapStyle} setMapStyle={setMapStyle} labelsVisible={labelsVisible} setLabelsVisible={setLabelsVisible} zonesVisible={zonesVisible} setZonesVisible={setZonesVisible} collapsed={collapsed} setCollapsed={setCollapsed} picking={picking} setPicking={setPicking} savedLocation={savedLocation} clearLocation={clearLocation} />
     </MapContainer>
   );
 }
