@@ -5,7 +5,7 @@ const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
 export const metadata = {
-  metadataBase: new URL('https://kavach-disaster-intelligence.openai.site'),
+  metadataBase: new URL('https://kavach-disaster-intelligence.piyushrya03.chatgpt.site'),
   title: 'KAVACH — Multi-Hazard Disaster Intelligence',
   description: 'Edge-AI powered multi-hazard environmental intelligence and early warning network.',
   openGraph: {
