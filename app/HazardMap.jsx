@@ -2,12 +2,19 @@
 
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Circle, CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { Circle, CircleMarker, MapContainer, Polygon, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { Globe2, LocateFixed, MapPin, Minus, Moon, Plus, Sun } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 const statusColors = { safe: '#16805d', moderate: '#d49614', high: '#e46e2e', critical: '#cf3741' };
 const DELHI_BOUNDS = [[28.39, 76.82], [28.91, 77.39]];
+const DELHI_BORDER = [
+  [28.883, 77.043], [28.876, 77.126], [28.840, 77.180], [28.829, 77.286],
+  [28.770, 77.337], [28.703, 77.336], [28.650, 77.326], [28.594, 77.347],
+  [28.536, 77.326], [28.482, 77.309], [28.410, 77.220], [28.422, 77.128],
+  [28.466, 77.045], [28.515, 76.966], [28.566, 76.845], [28.656, 76.837],
+  [28.735, 76.855], [28.797, 76.884], [28.856, 76.934],
+];
 
 const mapStyles = {
   light: {
@@ -81,6 +88,8 @@ export default function HazardMap({ nodes, filter, selectedNode, onSelect }) {
     <MapContainer bounds={DELHI_BOUNDS} boundsOptions={{ padding: [24, 24] }} minZoom={9} maxZoom={18} maxBounds={DELHI_BOUNDS} maxBoundsViscosity={0.72} zoomControl={false} scrollWheelZoom doubleClickZoom boxZoom keyboard className={`leaflet-map map-${mapStyle}`}>
       <TileLayer key={`${mapStyle}-base`} attribution={activeStyle.attribution} url={activeStyle.base} zIndex={200} />
       {labelsVisible && <TileLayer key={`${mapStyle}-labels`} attribution={activeStyle.attribution} url={activeStyle.labels} zIndex={350} />}
+      <Polygon positions={DELHI_BORDER} interactive={false} pathOptions={{ color: mapStyle === 'light' ? '#ffffff' : '#071016', weight: 7, opacity: mapStyle === 'earth' ? 0.82 : 0.62, fillColor: '#32bac7', fillOpacity: 0.025 }} />
+      <Polygon positions={DELHI_BORDER} interactive={false} pathOptions={{ color: mapStyle === 'light' ? '#087c88' : '#54e4ed', weight: 2.4, opacity: 0.98, dashArray: '9 5', fillColor: '#32bac7', fillOpacity: mapStyle === 'earth' ? 0.045 : 0.02 }} />
       {visibleNodes.filter((node) => ['critical', 'high'].includes(node.status)).map((node) => (
         <Circle key={`${node.id}-zone`} center={[node.lat, node.lng]} radius={node.status === 'critical' ? 4200 : 2800} pathOptions={{ color: statusColors[node.status], fillColor: statusColors[node.status], fillOpacity: 0.09, opacity: 0.65, weight: 1.2 }} />
       ))}
