@@ -11,10 +11,13 @@ import {
   Building2,
   Check,
   ChevronRight,
+  CloudFog,
   CloudRain,
   Crosshair,
   Download,
   FileText,
+  Factory,
+  Flame,
   Gauge,
   LockKeyhole,
   Map as MapIcon,
@@ -221,7 +224,7 @@ async function firebaseRequest(path, options = {}) {
   return response.json();
 }
 
-const hazardIcons = { Flood: Waves, 'Air Quality': Wind, Heat: ThermometerSun, Weather: CloudRain };
+const hazardIcons = { Flood: Waves, Fire: Flame, 'Forest Fire': Flame, 'Air Quality': Wind, Heat: ThermometerSun, Weather: CloudRain, Dust: CloudFog, 'Industrial Pollution': Factory };
 
 function NavigationRail({ activeView, setActiveView, theme, setTheme, firebaseStatus }) {
   return (
@@ -302,13 +305,14 @@ function AlertRail({ states, onAcknowledge, onLocate, alertsData, nodes }) {
 }
 
 function MapCanvas({ title, filter, setFilter, selectedNode, setSelectedNode, nodes, zones, alertsData }) {
+  const hazardFilters = ['All', ...new Set(nodes.map((node) => node.hazard))];
   return (
     <section className="map-canvas" aria-label={`Delhi ${title} map`}>
       <HazardMap nodes={nodes} zones={zones} filter={filter} selectedNode={selectedNode} onSelect={setSelectedNode} />
       <div className="map-identity"><div className="delhi-seal"><ShieldCheck size={18} /></div><div><span>KAVACH · DELHI</span><h1>{title}</h1></div></div>
       <div className="map-status"><span><i />{String(nodes.length).padStart(2, '0')} nodes deployed</span><b>10 DISTRICTS</b><b>{String(alertsData.length).padStart(2, '0')} ACTIVE ALERTS</b><b>FIREBASE LIVE</b></div>
       <div className="map-filters" role="group" aria-label="Filter map hazards">
-        {['All', 'Flood', 'Air Quality', 'Heat'].map((item) => <button key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}</button>)}
+        {hazardFilters.map((item) => <button key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}</button>)}
       </div>
       <div className="map-legend" aria-label="Map severity legend"><span><i className="safe" />Normal</span><span><i className="moderate" />Moderate</span><span><i className="high" />High</span><span><i className="critical" />Critical</span></div>
       <SelectedNode node={selectedNode} onClose={() => setSelectedNode(null)} />
@@ -446,7 +450,7 @@ function DeviceAdminModal({ stage, setStage, onAddDevice }) {
         <label>DEVICE ID<input value={device.id} onChange={(event) => update('id', event.target.value)} placeholder="e.g. FLOOD-021" /></label>
         <label>DEVICE NAME<input value={device.name} onChange={(event) => update('name', event.target.value)} placeholder="Deployment location" /></label>
         <label>DISTRICT / AREA<input value={device.area} onChange={(event) => update('area', event.target.value)} /></label>
-        <label>HAZARD PROFILE<select value={device.hazard} onChange={(event) => update('hazard', event.target.value)}><option>Flood</option><option>Air Quality</option><option>Heat</option><option>Weather</option></select></label>
+        <label>HAZARD PROFILE<select value={device.hazard} onChange={(event) => update('hazard', event.target.value)}><option>Flood</option><option>Fire</option><option>Air Quality</option><option>Heat</option><option>Weather</option><option>Dust</option><option>Industrial Pollution</option></select></label>
         <label>INITIAL STATUS<select value={device.status} onChange={(event) => update('status', event.target.value)}><option value="safe">Normal</option><option value="moderate">Moderate</option><option value="high">High</option><option value="critical">Critical</option></select></label>
         <label>RISK SCORE<input type="number" min="0" max="100" value={device.risk} onChange={(event) => update('risk', event.target.value)} /></label>
         <label>LATITUDE<input type="number" step="0.000001" value={device.latitude} onChange={(event) => update('latitude', event.target.value)} placeholder="28.613900" /></label>

@@ -2,11 +2,21 @@
 
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Circle, CircleMarker, MapContainer, Polygon, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
-import { Check, ChevronLeft, ChevronRight, Globe2, Layers3, LocateFixed, MapPin, MapPinned, Minus, Moon, Plus, Sun, Trash2 } from 'lucide-react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { Circle, CircleMarker, MapContainer, Marker, Polygon, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { Check, ChevronLeft, ChevronRight, CloudFog, CloudRain, Factory, Flame, Globe2, Layers3, LocateFixed, MapPin, MapPinned, Minus, Moon, Plus, Sun, ThermometerSun, Trash2, Waves, Wind } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 const statusColors = { safe: '#16805d', moderate: '#d49614', high: '#e46e2e', critical: '#cf3741' };
+const mapHazardIcons = {
+  flood: Waves,
+  fire: Flame,
+  'air quality': Wind,
+  heat: ThermometerSun,
+  weather: CloudRain,
+  dust: CloudFog,
+  'industrial pollution': Factory,
+};
 const DELHI_BOUNDS = [[28.404629, 76.838835], [28.883446, 77.345338]];
 const DELHI_BORDER = [
   [28.573231, 76.838835], [28.550012, 76.84586], [28.543673, 76.864447],
@@ -88,6 +98,30 @@ const mapStyles = {
     attribution: 'Imagery &copy; Esri · Boundary &copy; OpenStreetMap contributors',
   },
 };
+
+function getHazardIcon(hazard = '') {
+  const normalized = hazard.toLowerCase();
+  if (normalized.includes('fire') || normalized.includes('smoke')) return Flame;
+  if (normalized.includes('flood') || normalized.includes('water') || normalized.includes('yamuna')) return Waves;
+  if (normalized.includes('air') || normalized.includes('wind')) return Wind;
+  if (normalized.includes('heat') || normalized.includes('temperature')) return ThermometerSun;
+  if (normalized.includes('dust') || normalized.includes('fog')) return CloudFog;
+  if (normalized.includes('industrial') || normalized.includes('factory')) return Factory;
+  return mapHazardIcons[normalized] || CloudRain;
+}
+
+function createNodeIcon(node, selected) {
+  const Icon = getHazardIcon(node.hazard);
+  const svg = renderToStaticMarkup(<Icon size={17} strokeWidth={2.35} aria-hidden="true" />);
+  const color = statusColors[node.status] || statusColors.safe;
+  return L.divIcon({
+    className: `hazard-node-marker ${node.status || 'safe'} ${selected ? 'selected' : ''}`,
+    html: `<span class="hazard-node-pin" style="--node-color:${color}">${svg}</span>`,
+    iconSize: [40, 44],
+    iconAnchor: [20, 42],
+    tooltipAnchor: [0, -34],
+  });
+}
 
 function MapViewport({ selectedNode }) {
   const map = useMap();
@@ -207,9 +241,9 @@ export default function HazardMap({ nodes, zones = [], filter, selectedNode, onS
         <Circle key={`${node.id}-zone`} center={[node.lat, node.lng]} radius={node.status === 'critical' ? 4200 : 2800} pathOptions={{ color: statusColors[node.status], fillColor: statusColors[node.status], fillOpacity: 0.09, opacity: 0.65, weight: 1.2 }} />
       ))}
       {visibleNodes.map((node) => (
-        <CircleMarker key={node.id} center={[node.lat, node.lng]} radius={selectedNode?.id === node.id ? 10 : node.status === 'critical' ? 8 : 6.5} eventHandlers={{ click: () => onSelect(node) }} pathOptions={{ color: selectedNode?.id === node.id ? '#162233' : '#ffffff', weight: selectedNode?.id === node.id ? 2.6 : 2, fillColor: statusColors[node.status], fillOpacity: 1 }}>
-          <Tooltip direction="top" offset={[0, -8]} opacity={1}><div className="map-tooltip"><b>{node.name}</b><span>{node.id} · {node.area}</span><em>{node.risk}% {node.hazard} risk</em></div></Tooltip>
-        </CircleMarker>
+        <Marker key={node.id} position={[node.lat, node.lng]} icon={createNodeIcon(node, selectedNode?.id === node.id)} eventHandlers={{ click: () => onSelect(node) }}>
+          <Tooltip direction="top" opacity={1}><div className="map-tooltip"><b>{node.name}</b><span>{node.id} · {node.area}</span><em>{node.risk}% {node.hazard} risk</em></div></Tooltip>
+        </Marker>
       ))}
       {savedLocation && <CircleMarker center={[savedLocation.lat, savedLocation.lng]} radius={9} pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#1799a5', fillOpacity: 1 }}><Tooltip permanent direction="top" offset={[0, -10]} opacity={1}><div className="saved-map-tag"><b>Saved location</b><span>{savedLocation.lat.toFixed(5)}, {savedLocation.lng.toFixed(5)}</span></div></Tooltip></CircleMarker>}
       <MapViewport selectedNode={selectedNode} />

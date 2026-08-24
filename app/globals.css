@@ -192,6 +192,48 @@ button { font: inherit; }
 .map-tooltip b { color: #17212c; font-size: 10px; }
 .map-tooltip span { margin: 3px 0 5px; color: #77818d; font: 600 7px var(--font-geist-mono); }
 .map-tooltip em { color: var(--red); font: normal 8px var(--font-geist-mono); }
+.hazard-node-marker {
+  display: grid !important;
+  place-items: start center;
+  background: transparent !important;
+  border: 0 !important;
+  filter: drop-shadow(0 4px 6px #07131d66);
+  transition: filter .18s ease;
+}
+.hazard-node-pin {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--node-color);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #0e1b2680;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.hazard-node-pin::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 9px solid var(--node-color);
+  filter: drop-shadow(0 2px 0 #fff);
+}
+.hazard-node-pin svg { position: relative; z-index: 1; }
+.hazard-node-marker:hover .hazard-node-pin,
+.hazard-node-marker.selected .hazard-node-pin { transform: translateY(-2px) scale(1.14); box-shadow: 0 0 0 3px #ffffff70, 0 0 0 5px var(--node-color); }
+.hazard-node-marker.critical .hazard-node-pin { animation: critical-node-pulse 1.8s ease-out infinite; }
+@keyframes critical-node-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px #0e1b2680, 0 0 0 0 #cf374166; }
+  55% { box-shadow: 0 0 0 1px #0e1b2680, 0 0 0 8px #cf374100; }
+}
 .map-tools {
   position: absolute;
   z-index: 1000;
