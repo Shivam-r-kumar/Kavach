@@ -129,7 +129,7 @@ function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible }) {
 }
 
 export default function HazardMap({ nodes, filter, selectedNode, onSelect }) {
-  const [mapStyle, setMapStyle] = useState('light');
+  const [mapStyle, setMapStyle] = useState('earth');
   const [labelsVisible, setLabelsVisible] = useState(true);
   const visibleNodes = nodes.filter((node) => filter === 'All' || node.hazard === filter);
   const activeStyle = mapStyles[mapStyle];
