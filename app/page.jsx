@@ -255,6 +255,8 @@ function normalizeAlert(record, firebaseKey, order = 0) {
   const parsedTimestamp = typeof rawTimestamp === 'string' && !Number.isFinite(Number(rawTimestamp)) ? Date.parse(rawTimestamp) : Number(rawTimestamp);
   const timestamp = Number.isFinite(parsedTimestamp) && parsedTimestamp > 0 && parsedTimestamp < 1e12 ? parsedTimestamp * 1000 : parsedTimestamp;
   const relativeTimeLabel = typeof record.time === 'string' && !Number.isFinite(Number(record.time)) && !Number.isFinite(Date.parse(record.time)) ? record.time : timestamp;
+  const rawExpiry = Number(record.expiresAt || record.expires_at || 0);
+  const expiresAt = rawExpiry > 0 && rawExpiry < 1e12 ? rawExpiry * 1000 : rawExpiry;
   const node = String(record.node || record.nodeId || record.deviceId || record.device_id || record.sensorId || 'UNASSIGNED');
   const risk = Number(record.risk ?? record.riskScore ?? record.confidence ?? 0);
   const hazard = record.hazard || record.type || record.category || 'Edge sensor';
@@ -273,6 +275,7 @@ function normalizeAlert(record, firebaseKey, order = 0) {
     confidence: Math.max(0, Math.min(100, Number(record.confidence ?? record.aiConfidence ?? risk ?? 80) || 80)),
     action: record.action || record.recommendedAction || 'Verify signal and notify district control',
     acknowledged: Boolean(record.acknowledged),
+    expiresAt: Number.isFinite(expiresAt) ? expiresAt : 0,
     sortTimestamp: Number.isFinite(timestamp) && timestamp > 0 ? timestamp : order,
   };
 }
@@ -280,7 +283,7 @@ function normalizeAlert(record, firebaseKey, order = 0) {
 function toAlertCollection(value, fallback = []) {
   if (!value) return fallback;
   const entries = Array.isArray(value) ? value.map((record, index) => [String(index), record]) : Object.entries(value);
-  const normalized = entries.map(([key, record], index) => normalizeAlert(record, key, index)).filter(Boolean);
+  const normalized = entries.map(([key, record], index) => normalizeAlert(record, key, index)).filter((alert) => alert && (!alert.expiresAt || alert.expiresAt > Date.now()));
   return normalized.length ? normalized.sort((a, b) => b.sortTimestamp - a.sortTimestamp) : fallback;
 }
 
@@ -748,7 +751,7 @@ function DeviceAdminModal({ stage, setStage, initialMode, onSaveDevice, onDelete
   );
 }
 
-function SettingsPage({ theme, setTheme, settingsData, onUpdateSetting, onSaveDevice, onDeleteDevice, nodes, firebaseStatus }) {
+function SettingsPage({ theme, setTheme, settingsData, onUpdateSetting, seasonMode, onUpdateSeason, onSaveDevice, onDeleteDevice, nodes, firebaseStatus }) {
   const [adminStage, setAdminStage] = useState(null);
   const [adminInitialMode, setAdminInitialMode] = useState('form');
   const openAdmin = (mode) => { setAdminInitialMode(mode); setAdminStage('pin'); };
@@ -764,6 +767,9 @@ function SettingsPage({ theme, setTheme, settingsData, onUpdateSetting, onSaveDe
       <div className="settings-layout">
         <section className="settings-section"><header><span>APPEARANCE</span><h2>Interface theme</h2></header><div className="theme-choice"><button className={theme === 'light' ? 'active' : ''} onClick={() => setTheme('light')}><Sun size={18} /><span>Light mode</span><small>Bright operational workspace</small></button><button className={theme === 'dark' ? 'active' : ''} onClick={() => setTheme('dark')}><Moon size={18} /><span>Dark mode</span><small>Low-light command room</small></button></div></section>
         <section className="settings-section"><header><span>AUTOMATION · FIREBASE</span><h2>Rules & alerts</h2></header>{items.map(([key, title, detail]) => <button className="setting-toggle" key={key} onClick={() => onUpdateSetting(key, !settingsData[key])}><span><b>{title}</b><small>{detail}</small></span>{settingsData[key] ? <ToggleRight size={25} className="toggle-on" /> : <ToggleLeft size={25} />}</button>)}</section>
+        <section className="settings-section season-panel"><header><span>EDGE SIMULATION · FIREBASE LIVE</span><h2>Operational season</h2></header><div className="season-control">{[
+          ['auto', 'Auto', 'Calendar month'], ['summer', 'Summer', 'Heat + fire'], ['monsoon', 'Monsoon', 'Flood + waterlogging'], ['winter', 'Winter', 'Pollution + smog'], ['diwali', 'Diwali', 'Peak pollution'],
+        ].map(([value, label, detail]) => <button key={value} className={seasonMode === value ? 'active' : ''} onClick={() => onUpdateSeason(value)}><i>{value === 'summer' ? <Flame size={16} /> : value === 'monsoon' ? <CloudRain size={16} /> : value === 'winter' || value === 'diwali' ? <Wind size={16} /> : <Activity size={16} />}</i><span><b>{label}</b><small>{detail}</small></span>{seasonMode === value && <Check size={14} />}</button>)}</div><footer><i />Firebase path <code>/simulation/season/current</code><b>{seasonMode.toUpperCase()}</b></footer></section>
         <section className="settings-section admin-panel"><header><span>ADMIN PANEL</span><h2>Device management</h2></header><div><i><Server size={21} /></i><span><b>Firebase device registry</b><small>{nodes.length} devices · Database {firebaseStatus}</small></span><div className="admin-actions"><button onClick={() => openAdmin('manage')}><Eye size={14} />Show devices</button><button className="primary" onClick={() => openAdmin('form')}><Plus size={14} />Add device</button></div></div></section>
         <section className="settings-section thresholds"><header><span>AI RISK LEVELS</span><h2>Severity thresholds</h2></header>{[['Normal', '0–34%', 'safe'], ['Moderate', '35–59%', 'moderate'], ['High', '60–84%', 'high'], ['Critical', '85–100%', 'critical']].map(([label, value, level]) => <div key={label}><span><i className={`severity-dot ${level}`} />{label}</span><strong>{value}</strong></div>)}</section>
       </div>
@@ -783,6 +789,7 @@ export default function Home() {
   const [analyticsData, setAnalyticsData] = useState(fallbackAnalytics);
   const [reportsData, setReportsData] = useState(fallbackReports);
   const [settingsData, setSettingsData] = useState(fallbackSettings);
+  const [seasonMode, setSeasonMode] = useState('auto');
   const [zones, setZones] = useState(fallbackZones);
   const [firebaseStatus, setFirebaseStatus] = useState('connecting');
 
@@ -807,13 +814,14 @@ export default function Home() {
         setAnalyticsData(data.analytics || fallbackAnalytics);
         setReportsData(toCollection(data.reports, fallbackReports).sort((a, b) => String(b.id).localeCompare(String(a.id))));
         setSettingsData({ ...fallbackSettings, ...(data.settings || {}) });
+        setSeasonMode(data.simulation?.season?.current || 'auto');
         setZones(toCollection(data.zones, fallbackZones));
         setAcknowledged(Object.fromEntries(nextAlerts.filter((alert) => alert.acknowledged).map((alert) => [alert.id, true])));
         setFirebaseStatus('connected');
       } catch { if (mounted) setFirebaseStatus('error'); }
     };
     loadData();
-    const timer = window.setInterval(loadData, 15000);
+    const timer = window.setInterval(loadData, 10000);
     return () => { mounted = false; window.clearInterval(timer); };
   }, []);
 
@@ -836,6 +844,11 @@ export default function Home() {
     stream.onopen = () => setFirebaseStatus('connected');
     stream.onerror = () => setFirebaseStatus('connecting');
     return () => stream.close();
+  }, []);
+
+  useEffect(() => {
+    const expiryTimer = window.setInterval(() => setAlertsData((current) => current.filter((alert) => !alert.expiresAt || alert.expiresAt > Date.now())), 5000);
+    return () => window.clearInterval(expiryTimer);
   }, []);
 
   const locateNode = (nodeId) => {
@@ -870,6 +883,13 @@ export default function Home() {
     try { await firebaseRequest(`settings/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify(value) }); setFirebaseStatus('connected'); }
     catch { setFirebaseStatus('error'); }
   };
+  const updateSeason = async (season) => {
+    setSeasonMode(season);
+    try {
+      await firebaseRequest('simulation/season', { method: 'PUT', body: JSON.stringify({ current: season, updatedAt: Date.now(), updatedBy: 'KAVACH dashboard' }) });
+      setFirebaseStatus('connected');
+    } catch { setFirebaseStatus('error'); }
+  };
   const generateReport = async () => {
     const report = { id: `RPT-${Date.now().toString().slice(-6)}`, title: 'On-demand Command Brief', scope: 'Delhi NCT', created: 'Just now', format: 'JSON' };
     await firebaseRequest(`reports/${report.id}`, { method: 'PUT', body: JSON.stringify(report) });
@@ -882,7 +902,7 @@ export default function Home() {
     if (activeView === 'Sensor Grid') return <SensorsPage onLocate={locateNodeAndOpenMap} nodes={nodes} />;
     if (activeView === 'Analytics') return <AnalyticsPage analyticsData={analyticsData} />;
     if (activeView === 'Reports') return <ReportsPage reportsData={reportsData} onGenerateReport={generateReport} alertsData={alertsData} nodes={nodes} />;
-    return <SettingsPage theme={theme} setTheme={setTheme} settingsData={settingsData} onUpdateSetting={updateSetting} onSaveDevice={saveDevice} onDeleteDevice={deleteDevice} nodes={nodes} firebaseStatus={firebaseStatus} />;
+    return <SettingsPage theme={theme} setTheme={setTheme} settingsData={settingsData} onUpdateSetting={updateSetting} seasonMode={seasonMode} onUpdateSeason={updateSeason} onSaveDevice={saveDevice} onDeleteDevice={deleteDevice} nodes={nodes} firebaseStatus={firebaseStatus} />;
   };
 
   return (

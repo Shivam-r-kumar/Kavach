@@ -36,3 +36,6 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# Local Raspberry Pi edge simulator and device credentials
+/edge-code/

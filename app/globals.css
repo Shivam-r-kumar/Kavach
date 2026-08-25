@@ -998,6 +998,21 @@ button { font: inherit; }
 .setting-toggle small { margin-top: 5px; color: var(--portal-muted); font-size: 8px; }
 .setting-toggle svg { color: var(--portal-faint); }
 .setting-toggle .toggle-on { color: var(--green); }
+.season-panel { grid-column: 1 / -1; }
+.season-control { display: grid; grid-template-columns: repeat(5, 1fr); }
+.season-control button { min-height: 76px; display: grid; grid-template-columns: 30px 1fr 16px; align-items: center; gap: 8px; padding: 0 12px; color: var(--portal-muted); background: transparent; border: 0; border-right: 1px solid var(--portal-line); cursor: pointer; text-align: left; }
+.season-control button:last-child { border-right: 0; }
+.season-control button:hover { background: var(--portal-hover); }
+.season-control button.active { color: #37abb4; background: var(--portal-surface-2); box-shadow: inset 0 -2px #48b8c1; }
+.season-control button > i { width: 30px; height: 30px; display: grid; place-items: center; color: #3babb4; background: var(--portal-surface-2); border: 1px solid var(--portal-line); font-style: normal; }
+.season-control button span b,
+.season-control button span small { display: block; }
+.season-control button span b { color: var(--portal-text); font-size: 9px; }
+.season-control button span small { margin-top: 4px; color: var(--portal-muted); font-size: 7px; }
+.season-panel > footer { min-height: 34px; display: flex; align-items: center; gap: 7px; padding: 0 13px; color: var(--portal-muted); background: var(--portal-surface-2); border-top: 1px solid var(--portal-line); font: 650 7px var(--font-geist-mono); }
+.season-panel > footer > i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px #35b87a1c; }
+.season-panel > footer code { color: #3aaab3; }
+.season-panel > footer b { margin-left: auto; color: var(--portal-text); }
 .admin-panel { grid-column: 1 / -1; }
 .admin-panel > div { min-height: 86px; display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 12px; padding: 0 16px; }
 .admin-panel > div > i { width: 40px; height: 40px; display: grid; place-items: center; color: #37aeb8; background: var(--portal-surface-2); border: 1px solid var(--portal-line); font-style: normal; }
@@ -1155,6 +1170,10 @@ button { font: inherit; }
   .analytics-layout { min-width: 600px; }
   .thresholds { grid-template-columns: 1fr 1fr; }
   .thresholds > div { border-bottom: 1px solid var(--portal-line); }
+  .season-control { grid-template-columns: 1fr 1fr; }
+  .season-control button { border-bottom: 1px solid var(--portal-line); }
+  .season-control button:last-child { grid-column: 1 / -1; }
+  .season-panel > footer code { display: none; }
   .device-fields { grid-template-columns: 1fr 1fr; }
   .device-card > footer > span { display: none; }
   .device-side-layout,
