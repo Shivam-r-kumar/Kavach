@@ -189,7 +189,7 @@ function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible, zone
   );
 }
 
-function LeafletHazardMap({ nodes, zones = [], filter, selectedNode, onSelect }) {
+export default function HazardMap({ nodes, zones = [], filter, selectedNode, onSelect }) {
   const [mapStyle, setMapStyle] = useState('earth');
   const [labelsVisible, setLabelsVisible] = useState(true);
   const [zonesVisible, setZonesVisible] = useState(true);
@@ -344,7 +344,7 @@ function GoogleMapTools({ map, mapStyle, setMapStyle, labelsVisible, setLabelsVi
   );
 }
 
-export default function GoogleHazardMap({ nodes, zones = [], filter, selectedNode, onSelect }) {
+function GoogleHazardMap({ nodes, zones = [], filter, selectedNode, onSelect }) {
   const containerRef = useRef(null);
   const mapsRef = useRef(null);
   const mapRef = useRef(null);

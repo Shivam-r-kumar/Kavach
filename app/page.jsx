@@ -226,6 +226,84 @@ const toCollection = (value, fallback) => {
   return rows.length ? rows : fallback;
 };
 
+const alertLevel = (value, risk = 0) => {
+  const normalized = String(value || '').toLowerCase();
+  if (['critical', 'emergency', 'severe', 'danger'].some((term) => normalized.includes(term)) || Number(risk) >= 85) return 'critical';
+  if (['high', 'warning', 'alert'].some((term) => normalized.includes(term)) || Number(risk) >= 65) return 'high';
+  if (['moderate', 'medium', 'watch'].some((term) => normalized.includes(term)) || Number(risk) >= 40) return 'moderate';
+  return 'advisory';
+};
+
+const alertAge = (value) => {
+  if (typeof value === 'string' && value && !Number.isFinite(Number(value))) {
+    const parsed = Date.parse(value);
+    if (!Number.isFinite(parsed)) return value.replace(/\s+ago$/i, '');
+    value = parsed;
+  }
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Just now';
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+  if (elapsedMinutes < 1) return 'Just now';
+  if (elapsedMinutes < 60) return `${elapsedMinutes} min`;
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  return elapsedHours < 24 ? `${elapsedHours} hr` : `${Math.floor(elapsedHours / 24)} day`;
+};
+
+function normalizeAlert(record, firebaseKey, order = 0) {
+  if (!record || typeof record !== 'object') return null;
+  const rawTimestamp = record.timestamp || record.createdAt || record.created_at || record.timeMs || 0;
+  const parsedTimestamp = typeof rawTimestamp === 'string' && !Number.isFinite(Number(rawTimestamp)) ? Date.parse(rawTimestamp) : Number(rawTimestamp);
+  const timestamp = Number.isFinite(parsedTimestamp) && parsedTimestamp > 0 && parsedTimestamp < 1e12 ? parsedTimestamp * 1000 : parsedTimestamp;
+  const relativeTimeLabel = typeof record.time === 'string' && !Number.isFinite(Number(record.time)) && !Number.isFinite(Date.parse(record.time)) ? record.time : timestamp;
+  const node = String(record.node || record.nodeId || record.deviceId || record.device_id || record.sensorId || 'UNASSIGNED');
+  const risk = Number(record.risk ?? record.riskScore ?? record.confidence ?? 0);
+  const hazard = record.hazard || record.type || record.category || 'Edge sensor';
+  const rawValue = record.metric ?? record.value ?? record.reading ?? record.sensorValue;
+  return {
+    ...record,
+    id: String(record.id || record.alertId || record.alert_id || firebaseKey || `EDGE-${order + 1}`),
+    firebaseKey: String(firebaseKey || record.id || record.alertId || `EDGE-${order + 1}`),
+    node,
+    level: alertLevel(record.level || record.severity || record.status, risk),
+    title: record.title || record.message || `${hazard} threshold alert`,
+    location: record.location || record.area || record.district || `${node} · Delhi NCT`,
+    time: record.timeLabel || alertAge(relativeTimeLabel),
+    summary: record.summary || record.description || record.message || `An edge device reported an abnormal ${String(hazard).toLowerCase()} reading.`,
+    metric: rawValue === undefined ? 'Threshold crossed' : String(rawValue),
+    confidence: Math.max(0, Math.min(100, Number(record.confidence ?? record.aiConfidence ?? risk ?? 80) || 80)),
+    action: record.action || record.recommendedAction || 'Verify signal and notify district control',
+    acknowledged: Boolean(record.acknowledged),
+    sortTimestamp: Number.isFinite(timestamp) && timestamp > 0 ? timestamp : order,
+  };
+}
+
+function toAlertCollection(value, fallback = []) {
+  if (!value) return fallback;
+  const entries = Array.isArray(value) ? value.map((record, index) => [String(index), record]) : Object.entries(value);
+  const normalized = entries.map(([key, record], index) => normalizeAlert(record, key, index)).filter(Boolean);
+  return normalized.length ? normalized.sort((a, b) => b.sortTimestamp - a.sortTimestamp) : fallback;
+}
+
+function applyFirebaseStreamUpdate(current, path, data, eventType) {
+  if (path === '/') {
+    if (eventType === 'put') return data;
+    return { ...(current && typeof current === 'object' ? current : {}), ...(data && typeof data === 'object' ? data : {}) };
+  }
+  const next = current && typeof current === 'object' ? JSON.parse(JSON.stringify(current)) : {};
+  const segments = path.split('/').filter(Boolean);
+  let cursor = next;
+  segments.slice(0, -1).forEach((segment) => {
+    if (!cursor[segment] || typeof cursor[segment] !== 'object') cursor[segment] = {};
+    cursor = cursor[segment];
+  });
+  const finalSegment = segments.at(-1);
+  if (!finalSegment) return next;
+  if (data === null) delete cursor[finalSegment];
+  else if (eventType === 'patch' && cursor[finalSegment] && typeof cursor[finalSegment] === 'object' && typeof data === 'object') cursor[finalSegment] = { ...cursor[finalSegment], ...data };
+  else cursor[finalSegment] = data;
+  return next;
+}
+
 async function firebaseRequest(path, options = {}) {
   const response = await fetch(`${FIREBASE_URL}/${path}.json`, {
     ...options,
@@ -360,14 +438,14 @@ function SeasonalWarningTicker({ nodes }) {
   );
 }
 
-function NavigationRail({ activeView, setActiveView, theme, setTheme, firebaseStatus }) {
+function NavigationRail({ activeView, setActiveView, theme, setTheme, firebaseStatus, alertCount }) {
   return (
     <aside className="nav-rail" aria-label="Primary navigation">
       <div className="nav-brand" aria-label="KAVACH Delhi"><ShieldCheck size={22} /><span>KV</span></div>
       <nav>
         {navItems.map(({ label, icon: Icon, badge }) => (
           <button key={label} onClick={() => setActiveView(label)} className={`rail-link ${activeView === label ? 'active' : ''}`} aria-current={activeView === label ? 'page' : undefined} aria-label={label} title={label}>
-            <Icon size={18} strokeWidth={1.8} /><span>{label}</span>{badge && <b>{badge}</b>}
+            <Icon size={18} strokeWidth={1.8} /><span>{label}</span>{(label === 'Alerts' ? alertCount : badge) > 0 && <b>{label === 'Alerts' ? alertCount : badge}</b>}
           </button>
         ))}
       </nav>
@@ -404,7 +482,7 @@ function AlertItem({ alert, state, onAcknowledge, onLocate, nodes = delhiNodes }
   const Icon = hazardIcons[node?.hazard] || AlertTriangle;
   return (
     <article className={`incident ${alert.level} ${state ? 'acknowledged' : ''}`}>
-      <div className="incident-topline"><span><i />{alert.level}</span><time>{alert.time} ago</time></div>
+      <div className="incident-topline"><span><i />{alert.level}</span><time>{/^(just )?now$/i.test(alert.time) ? alert.time : /ago$/i.test(alert.time) ? alert.time : `${alert.time} ago`}</time></div>
       <div className="incident-title"><span className="incident-icon"><Icon size={17} /></span><div><small>{alert.id}</small><h3>{alert.title}</h3></div></div>
       <p className="incident-location"><Building2 size={12} />{alert.location}</p>
       <p className="incident-summary">{alert.summary}</p>
@@ -427,7 +505,7 @@ function AlertRail({ states, onAcknowledge, onLocate, alertsData, nodes }) {
       </header>
       <div className="alert-summary">
         <div><span>Active incidents</span><strong>{String(alertsData.length).padStart(2, '0')}</strong></div>
-        <div><span>Unacknowledged</span><strong>{alertsData.length - Object.keys(states).filter((id) => states[id]).length}</strong></div>
+        <div><span>Unacknowledged</span><strong>{alertsData.filter((alert) => !states[alert.id]).length}</strong></div>
         <div><span>Highest risk</span><strong className="critical-text">91%</strong></div>
       </div>
       <SeasonalWarningTicker nodes={nodes} />
@@ -481,7 +559,7 @@ function AlertsPage({ acknowledged, onAcknowledge, onLocate, alertsData, nodes }
   return (
     <section className="module-page">
       <ModuleHeader eyebrow="INCIDENT OPERATIONS · DELHI NCT" title="Active Alerts" description="AI-ranked events awaiting command-centre action across Delhi districts." action={<div className="module-live"><i />SIMULATED LIVE FEED</div>} />
-      <div className="module-metrics"><div><span>Critical</span><strong className="red-text">01</strong><small>Immediate action</small></div><div><span>High</span><strong className="orange-text">02</strong><small>District response</small></div><div><span>Moderate</span><strong>02</strong><small>Enhanced watch</small></div><div><span>Acknowledged</span><strong>{Object.values(acknowledged).filter(Boolean).length}</strong><small>Current session</small></div></div>
+      <div className="module-metrics"><div><span>Critical</span><strong className="red-text">{String(alertsData.filter((alert) => alert.level === 'critical').length).padStart(2, '0')}</strong><small>Immediate action</small></div><div><span>High</span><strong className="orange-text">{String(alertsData.filter((alert) => alert.level === 'high').length).padStart(2, '0')}</strong><small>District response</small></div><div><span>Moderate</span><strong>{String(alertsData.filter((alert) => alert.level === 'moderate').length).padStart(2, '0')}</strong><small>Enhanced watch</small></div><div><span>Acknowledged</span><strong>{alertsData.filter((alert) => acknowledged[alert.id]).length}</strong><small>Firebase state</small></div></div>
       <div className="module-toolbar"><div className="segmented">{['All', 'Critical', 'High', 'Moderate'].map((item) => <button key={item} className={level === item ? 'active' : ''} onClick={() => setLevel(item)}>{item}</button>)}</div><span>{filteredAlerts.length} incidents shown</span></div>
       <div className="alerts-page-grid">{filteredAlerts.map((alert) => <AlertItem key={alert.id} alert={alert} state={acknowledged[alert.id]} onAcknowledge={onAcknowledge} onLocate={onLocate} nodes={nodes} />)}</div>
     </section>
@@ -701,7 +779,7 @@ export default function Home() {
   const [activeView, setActiveView] = useState('Command Centre');
   const [theme, setTheme] = useState('dark');
   const [nodes, setNodes] = useState([]);
-  const [alertsData, setAlertsData] = useState(alerts);
+  const [alertsData, setAlertsData] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(fallbackAnalytics);
   const [reportsData, setReportsData] = useState(fallbackReports);
   const [settingsData, setSettingsData] = useState(fallbackSettings);
@@ -721,9 +799,9 @@ export default function Home() {
       try {
         const data = await firebaseRequest('');
         if (!mounted) return;
-        if (!data) { setNodes([]); setFirebaseStatus('empty'); return; }
+        if (!data) { setNodes([]); setAlertsData([]); setAcknowledged({}); setFirebaseStatus('empty'); return; }
         const nextNodes = toCollection(data.devices, []);
-        const nextAlerts = toCollection(data.alerts, alerts);
+        const nextAlerts = toAlertCollection(data.alerts, []);
         setNodes(nextNodes);
         setAlertsData(nextAlerts);
         setAnalyticsData(data.analytics || fallbackAnalytics);
@@ -739,6 +817,27 @@ export default function Home() {
     return () => { mounted = false; window.clearInterval(timer); };
   }, []);
 
+  useEffect(() => {
+    if (typeof window.EventSource === 'undefined') return undefined;
+    let alertSnapshot = null;
+    const stream = new window.EventSource(`${FIREBASE_URL}/alerts.json`);
+    const receiveUpdate = (eventType) => (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        alertSnapshot = applyFirebaseStreamUpdate(alertSnapshot, message.path || '/', message.data, eventType);
+        const nextAlerts = toAlertCollection(alertSnapshot, []);
+        setAlertsData(nextAlerts);
+        setAcknowledged(Object.fromEntries(nextAlerts.filter((alert) => alert.acknowledged).map((alert) => [alert.id, true])));
+        setFirebaseStatus('connected');
+      } catch { setFirebaseStatus('error'); }
+    };
+    stream.addEventListener('put', receiveUpdate('put'));
+    stream.addEventListener('patch', receiveUpdate('patch'));
+    stream.onopen = () => setFirebaseStatus('connected');
+    stream.onerror = () => setFirebaseStatus('connecting');
+    return () => stream.close();
+  }, []);
+
   const locateNode = (nodeId) => {
     const node = nodes.find((item) => item.id === nodeId);
     if (node) setSelectedNode(node);
@@ -746,9 +845,10 @@ export default function Home() {
   const locateNodeAndOpenMap = (nodeId) => { locateNode(nodeId); setActiveView('Live Map'); };
   const onAcknowledge = async (id) => {
     const nextValue = !acknowledged[id];
+    const firebaseKey = alertsData.find((alert) => alert.id === id)?.firebaseKey || id;
     setAcknowledged((current) => ({ ...current, [id]: nextValue }));
     setAlertsData((current) => current.map((alert) => alert.id === id ? { ...alert, acknowledged: nextValue } : alert));
-    try { await firebaseRequest(`alerts/${encodeURIComponent(id)}/acknowledged`, { method: 'PUT', body: JSON.stringify(nextValue) }); }
+    try { await firebaseRequest(`alerts/${encodeURIComponent(firebaseKey)}/acknowledged`, { method: 'PUT', body: JSON.stringify(nextValue) }); }
     catch { setFirebaseStatus('error'); }
   };
   const saveDevice = async (device, editingId = null) => {
@@ -787,7 +887,7 @@ export default function Home() {
 
   return (
     <main className={`command-shell theme-${theme}`}>
-      <NavigationRail activeView={activeView} setActiveView={setActiveView} theme={theme} setTheme={setTheme} firebaseStatus={firebaseStatus} />
+      <NavigationRail activeView={activeView} setActiveView={setActiveView} theme={theme} setTheme={setTheme} firebaseStatus={firebaseStatus} alertCount={alertsData.length} />
       {activeView === 'Command Centre' && <><MapCanvas title="Command Centre" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} zones={zones} alertsData={alertsData} /><AlertRail states={acknowledged} onAcknowledge={onAcknowledge} onLocate={locateNode} alertsData={alertsData} nodes={nodes} /></>}
       {activeView === 'Live Map' && <><MapCanvas title="Live Map" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} zones={zones} alertsData={alertsData} /><NodeRail selectedNode={selectedNode} onSelect={setSelectedNode} nodes={nodes} /></>}
       {!['Command Centre', 'Live Map'].includes(activeView) && renderModule()}
