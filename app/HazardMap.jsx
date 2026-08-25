@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { Circle, CircleMarker, MapContainer, Marker, Polygon, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { Check, ChevronLeft, ChevronRight, CloudFog, CloudRain, Factory, Flame, Globe2, Layers3, LocateFixed, MapPin, MapPinned, Minus, Moon, Plus, Sun, ThermometerSun, Trash2, Waves, Wind } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
+import { loadGoogleMaps } from './googleMaps';
 
 const statusColors = { safe: '#16805d', moderate: '#d49614', high: '#e46e2e', critical: '#cf3741' };
 const mapHazardIcons = {
@@ -188,7 +189,7 @@ function MapTools({ mapStyle, setMapStyle, labelsVisible, setLabelsVisible, zone
   );
 }
 
-export default function HazardMap({ nodes, zones = [], filter, selectedNode, onSelect }) {
+function LeafletHazardMap({ nodes, zones = [], filter, selectedNode, onSelect }) {
   const [mapStyle, setMapStyle] = useState('earth');
   const [labelsVisible, setLabelsVisible] = useState(true);
   const [zonesVisible, setZonesVisible] = useState(true);
@@ -256,5 +257,234 @@ export default function HazardMap({ nodes, zones = [], filter, selectedNode, onS
       <LocationPicker enabled={picking} onPick={saveLocation} />
       <MapTools mapStyle={mapStyle} setMapStyle={setMapStyle} labelsVisible={labelsVisible} setLabelsVisible={setLabelsVisible} zonesVisible={zonesVisible} setZonesVisible={setZonesVisible} collapsed={collapsed} setCollapsed={setCollapsed} picking={picking} setPicking={setPicking} savedLocation={savedLocation} clearLocation={clearLocation} />
     </MapContainer>
+  );
+}
+
+const GOOGLE_DELHI_BOUNDS = { north: 28.883446, south: 28.404629, east: 77.345338, west: 76.838835 };
+const lightRoadStyles = [
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#e8ecea' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#dce8de' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#d8dfe3' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#b7d9e2' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#d8dee1' }] },
+];
+const darkRoadStyles = [
+  { elementType: 'geometry', stylers: [{ color: '#17212a' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#17212a' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8d9ba6' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#3b4a56' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#1d2932' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#183029' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c3943' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3b4852' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#26333d' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#102a37' }] },
+];
+
+function escapeMapText(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
+}
+
+function createGoogleOverlay(maps, map, position, className, html, onClick, title = '') {
+  const overlay = new maps.OverlayView();
+  let element;
+  overlay.onAdd = () => {
+    element = document.createElement('button');
+    element.type = 'button';
+    element.className = className;
+    element.innerHTML = html;
+    element.title = title;
+    element.style.position = 'absolute';
+    element.style.transform = 'translate(-50%, -100%)';
+    element.style.border = '0';
+    element.style.padding = '0';
+    element.style.background = 'transparent';
+    if (onClick) element.addEventListener('click', onClick);
+    else element.tabIndex = -1;
+    overlay.getPanes().overlayMouseTarget.appendChild(element);
+  };
+  overlay.draw = () => {
+    if (!element) return;
+    const point = overlay.getProjection().fromLatLngToDivPixel(new maps.LatLng(position));
+    if (point) { element.style.left = `${point.x}px`; element.style.top = `${point.y}px`; }
+  };
+  overlay.onRemove = () => { element?.remove(); element = null; };
+  overlay.setMap(map);
+  return overlay;
+}
+
+function GoogleMapTools({ map, mapStyle, setMapStyle, labelsVisible, setLabelsVisible, zonesVisible, setZonesVisible, collapsed, setCollapsed, picking, setPicking, savedLocation, clearLocation }) {
+  const showDelhi = () => map?.fitBounds(GOOGLE_DELHI_BOUNDS, 24);
+  return (
+    <div className={`map-tools ${collapsed ? 'collapsed' : ''}`}>
+      <button className="map-tools-toggle" onClick={() => setCollapsed((current) => !current)} aria-label={collapsed ? 'Open map tools' : 'Collapse map tools'} title={collapsed ? 'Open map tools' : 'Collapse map tools'}>
+        {collapsed ? <ChevronLeft size={17} /> : <ChevronRight size={17} />}
+      </button>
+      <span className="map-tools-label">GOOGLE MAP STYLE</span>
+      <div className="map-style-options">
+        {Object.entries(mapStyles).map(([key, item]) => { const Icon = item.icon; return <button key={key} className={mapStyle === key ? 'active' : ''} onClick={() => setMapStyle(key)} aria-label={`${item.name} map`} title={`${item.name} map`}><Icon size={14} /><span>{item.name}</span></button>; })}
+      </div>
+      <button className={`label-toggle ${labelsVisible ? 'on' : ''}`} onClick={() => setLabelsVisible((current) => !current)} aria-pressed={labelsVisible}>
+        <MapPin size={14} /><span>Google place labels</span><b>{labelsVisible ? 'ON' : 'OFF'}</b>
+      </button>
+      <button className={`label-toggle ${zonesVisible ? 'on' : ''}`} onClick={() => setZonesVisible((current) => !current)} aria-pressed={zonesVisible}>
+        <Layers3 size={14} /><span>Operational zones</span><b>{zonesVisible ? 'ON' : 'OFF'}</b>
+      </button>
+      <button className={`location-picker-button ${picking ? 'picking' : ''} ${savedLocation ? 'saved' : ''}`} onClick={() => setPicking((current) => !current)} aria-pressed={picking}>
+        {savedLocation && !picking ? <Check size={14} /> : <MapPinned size={14} />}<span>{picking ? 'Click a point on map' : savedLocation ? 'Change saved location' : 'Pick a location'}</span><b>{picking ? 'PICKING' : savedLocation ? 'SAVED' : 'SET'}</b>
+      </button>
+      {savedLocation && <div className="saved-location"><MapPin size={13} /><span><b>Saved point</b><small>{savedLocation.lat.toFixed(5)}, {savedLocation.lng.toFixed(5)}</small></span><button onClick={clearLocation} aria-label="Clear saved location" title="Clear saved location"><Trash2 size={13} /></button></div>}
+      <div className="zoom-tools" aria-label="Map zoom controls">
+        <button onClick={() => map?.setZoom(Math.min(19, (map.getZoom() || 10) + 1))} aria-label="Zoom in" title="Zoom in"><Plus size={16} /></button>
+        <button onClick={() => map?.setZoom(Math.max(9, (map.getZoom() || 10) - 1))} aria-label="Zoom out" title="Zoom out"><Minus size={16} /></button>
+        <button onClick={showDelhi} aria-label="Show full Delhi overview" title="Show full Delhi overview"><LocateFixed size={15} /></button>
+      </div>
+    </div>
+  );
+}
+
+export default function GoogleHazardMap({ nodes, zones = [], filter, selectedNode, onSelect }) {
+  const containerRef = useRef(null);
+  const mapsRef = useRef(null);
+  const mapRef = useRef(null);
+  const nodeObjectsRef = useRef([]);
+  const zoneObjectsRef = useRef([]);
+  const borderObjectsRef = useRef([]);
+  const savedObjectRef = useRef(null);
+  const pickingRef = useRef(false);
+  const onSelectRef = useRef(onSelect);
+  const [googleMap, setGoogleMap] = useState(null);
+  const [loadState, setLoadState] = useState('loading');
+  const [mapStyle, setMapStyle] = useState('earth');
+  const [labelsVisible, setLabelsVisible] = useState(true);
+  const [zonesVisible, setZonesVisible] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [savedLocation, setSavedLocation] = useState(null);
+  const visibleNodes = nodes.filter((node) => filter === 'All' || node.hazard === filter);
+
+  useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
+  useEffect(() => { pickingRef.current = picking; if (mapRef.current) mapRef.current.setOptions({ draggableCursor: picking ? 'crosshair' : null }); }, [picking]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('kavach-saved-location'));
+      if (Number.isFinite(saved?.lat) && Number.isFinite(saved?.lng)) setSavedLocation(saved);
+    } catch { /* Ignore an invalid saved browser value. */ }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false; let clickListener;
+    loadGoogleMaps().then((maps) => {
+      if (cancelled || !containerRef.current) return;
+      const map = new maps.Map(containerRef.current, {
+        center: { lat: 28.6358, lng: 77.2189 }, zoom: 10, minZoom: 9, maxZoom: 19,
+        mapTypeId: 'hybrid', restriction: { latLngBounds: GOOGLE_DELHI_BOUNDS, strictBounds: false },
+        streetViewControl: false, mapTypeControl: false, fullscreenControl: false, zoomControl: false,
+        clickableIcons: false, gestureHandling: 'greedy', keyboardShortcuts: true,
+      });
+      map.fitBounds(GOOGLE_DELHI_BOUNDS, 24);
+      clickListener = map.addListener('click', (event) => {
+        if (!pickingRef.current) return;
+        const location = { lat: Number(event.latLng.lat().toFixed(6)), lng: Number(event.latLng.lng().toFixed(6)) };
+        setSavedLocation(location); setPicking(false);
+        window.localStorage.setItem('kavach-saved-location', JSON.stringify(location));
+      });
+      mapsRef.current = maps; mapRef.current = map; setGoogleMap(map); setLoadState('ready');
+    }).catch(() => { if (!cancelled) setLoadState('error'); });
+    return () => {
+      cancelled = true; clickListener?.remove();
+      [...nodeObjectsRef.current, ...zoneObjectsRef.current, ...borderObjectsRef.current].forEach((object) => object.setMap(null));
+      savedObjectRef.current?.setMap(null);
+      mapRef.current = null; mapsRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const baseStyles = mapStyle === 'dark' ? darkRoadStyles : lightRoadStyles;
+    const styles = labelsVisible ? baseStyles : [...baseStyles, { elementType: 'labels', stylers: [{ visibility: 'off' }] }];
+    map.setOptions({
+      mapTypeId: mapStyle === 'earth' ? (labelsVisible ? 'hybrid' : 'satellite') : 'roadmap',
+      styles: mapStyle === 'earth' ? null : styles,
+    });
+  }, [mapStyle, labelsVisible, googleMap]);
+
+  useEffect(() => {
+    const map = mapRef.current; const maps = mapsRef.current;
+    if (!map || !maps) return;
+    borderObjectsRef.current.forEach((object) => object.setMap(null));
+    const paths = DELHI_BORDER.map(([lat, lng]) => ({ lat, lng }));
+    const outer = new maps.Polygon({ map, paths, clickable: false, strokeColor: mapStyle === 'light' ? '#ffffff' : '#071016', strokeWeight: 7, strokeOpacity: mapStyle === 'earth' ? 0.82 : 0.62, fillColor: '#32bac7', fillOpacity: 0.025, zIndex: 410 });
+    const border = new maps.Polygon({ map, paths, clickable: false, strokeColor: mapStyle === 'light' ? '#087c88' : '#54e4ed', strokeWeight: 2.4, strokeOpacity: 0.98, fillColor: '#32bac7', fillOpacity: mapStyle === 'earth' ? 0.045 : 0.02, zIndex: 420 });
+    borderObjectsRef.current = [outer, border];
+  }, [mapStyle, googleMap]);
+
+  useEffect(() => {
+    const map = mapRef.current; const maps = mapsRef.current;
+    if (!map || !maps) return;
+    zoneObjectsRef.current.forEach((object) => object.setMap(null));
+    zoneObjectsRef.current = [];
+    if (!zonesVisible) return;
+    zones.forEach((zone) => {
+      const polygon = new maps.Polygon({
+        map, paths: zone.positions.map(([lat, lng]) => ({ lat, lng })), clickable: false,
+        strokeColor: zone.color, strokeWeight: 1, strokeOpacity: 0.52, fillColor: zone.color,
+        fillOpacity: mapStyle === 'earth' ? 0.22 : 0.16, zIndex: 300,
+      });
+      const label = createGoogleOverlay(maps, map, { lat: zone.label[0], lng: zone.label[1] }, 'google-zone-label', `<span class="zone-tag"><b>${escapeMapText(zone.id.replace('ZONE-', 'Z'))}</b><span>${escapeMapText(zone.short || zone.name)}</span></span>`, null);
+      zoneObjectsRef.current.push(polygon, label);
+    });
+  }, [zones, zonesVisible, mapStyle, googleMap]);
+
+  useEffect(() => {
+    const map = mapRef.current; const maps = mapsRef.current;
+    if (!map || !maps) return;
+    nodeObjectsRef.current.forEach((object) => { maps.event.clearInstanceListeners(object); object.setMap(null); });
+    nodeObjectsRef.current = [];
+    visibleNodes.forEach((node) => {
+      const position = { lat: Number(node.lat), lng: Number(node.lng) };
+      if (['critical', 'high'].includes(node.status)) {
+        nodeObjectsRef.current.push(new maps.Circle({ map, center: position, radius: node.status === 'critical' ? 4200 : 2800, clickable: false, strokeColor: statusColors[node.status], strokeOpacity: 0.65, strokeWeight: 1.2, fillColor: statusColors[node.status], fillOpacity: 0.09, zIndex: 440 }));
+      }
+      if (node.status === 'safe') {
+        const selected = selectedNode?.id === node.id;
+        const marker = new maps.Marker({ map, position, title: `${node.name} · ${node.area}`, zIndex: selected ? 800 : 600, icon: { path: maps.SymbolPath.CIRCLE, scale: selected ? 8 : 5.5, fillColor: statusColors.safe, fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: selected ? 3 : 2 } });
+        marker.addListener('click', () => onSelectRef.current(node));
+        nodeObjectsRef.current.push(marker);
+      } else {
+        const Icon = getHazardIcon(node.hazard);
+        const svg = renderToStaticMarkup(<Icon size={17} strokeWidth={2.35} aria-hidden="true" />);
+        const overlay = createGoogleOverlay(maps, map, position, `hazard-node-marker ${node.status || 'safe'} ${selectedNode?.id === node.id ? 'selected' : ''}`, `<span class="hazard-node-pin" style="--node-color:${statusColors[node.status] || statusColors.safe}">${svg}</span>`, () => onSelectRef.current(node), `${node.name} · ${node.risk}% ${node.hazard} risk`);
+        nodeObjectsRef.current.push(overlay);
+      }
+    });
+  }, [nodes, filter, selectedNode, googleMap]);
+
+  useEffect(() => {
+    if (!selectedNode || !mapRef.current) return;
+    mapRef.current.panTo({ lat: Number(selectedNode.lat), lng: Number(selectedNode.lng) });
+    mapRef.current.setZoom(13);
+  }, [selectedNode]);
+
+  useEffect(() => {
+    const map = mapRef.current; const maps = mapsRef.current;
+    if (!map || !maps) return;
+    savedObjectRef.current?.setMap(null); savedObjectRef.current = null;
+    if (!savedLocation) return;
+    savedObjectRef.current = new maps.Marker({ map, position: savedLocation, title: `Saved location · ${savedLocation.lat.toFixed(5)}, ${savedLocation.lng.toFixed(5)}`, zIndex: 850, icon: { path: maps.SymbolPath.CIRCLE, scale: 9, fillColor: '#1799a5', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 3 } });
+  }, [savedLocation, googleMap]);
+
+  const clearLocation = () => { setSavedLocation(null); setPicking(false); window.localStorage.removeItem('kavach-saved-location'); };
+
+  return (
+    <div className={`google-map-shell map-${mapStyle} ${picking ? 'location-picking' : ''}`}>
+      <div ref={containerRef} className="google-map-surface" aria-label="Google Maps overview of Delhi disaster intelligence nodes" />
+      {loadState === 'loading' && <div className="map-loading"><Globe2 size={23} /><span>Loading Google Maps</span></div>}
+      {loadState === 'error' && <div className="map-loading map-error"><Globe2 size={23} /><span>Google Maps could not be loaded</span></div>}
+      <GoogleMapTools map={googleMap} mapStyle={mapStyle} setMapStyle={setMapStyle} labelsVisible={labelsVisible} setLabelsVisible={setLabelsVisible} zonesVisible={zonesVisible} setZonesVisible={setZonesVisible} collapsed={collapsed} setCollapsed={setCollapsed} picking={picking} setPicking={setPicking} savedLocation={savedLocation} clearLocation={clearLocation} />
+    </div>
   );
 }
