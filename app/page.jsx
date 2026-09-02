@@ -66,7 +66,7 @@ const DeviceRegistryMap = dynamic(() => import('./DeviceRegistryMap'), {
   loading: () => <div className="device-map-loading"><MapPinned size={19} /><span>Loading device registry</span></div>,
 });
 
-const FIREBASE_URL = 'https://sih-kavach-default-rtdb.asia-southeast1.firebasedatabase.app';
+const FIREBASE_URL = (process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || 'https://sih-kavach-default-rtdb.asia-southeast1.firebasedatabase.app').replace(/\/$/, '');
 
 const navItems = [
   { label: 'Command Centre', icon: Activity },

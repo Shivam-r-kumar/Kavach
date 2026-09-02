@@ -3,9 +3,11 @@ import './globals.css';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
+const deploymentHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (deploymentHost ? `https://${deploymentHost}` : 'https://kavach-disaster-intelligence.piyushrya03.chatgpt.site');
 
 export const metadata = {
-  metadataBase: new URL('https://kavach-disaster-intelligence.piyushrya03.chatgpt.site'),
+  metadataBase: new URL(siteUrl),
   title: 'KAVACH Delhi — Disaster Command Centre',
   description: 'Delhi NCT multi-hazard command centre for local environmental intelligence and incident response.',
   openGraph: {
