@@ -19,6 +19,8 @@ const mapHazardIcons = {
   'industrial pollution': Factory,
 };
 const DELHI_BOUNDS = [[28.404629, 76.838835], [28.883446, 77.345338]];
+// Keep the first view focused on Delhi, while allowing the operator to inspect the surrounding NCR context.
+const MAP_PAN_BOUNDS = [[28.27, 76.60], [29.03, 77.58]];
 const DELHI_BORDER = [
   [28.573231, 76.838835], [28.550012, 76.84586], [28.543673, 76.864447],
   [28.52495, 76.876868], [28.520306, 76.887138], [28.505582, 76.880522],
@@ -227,7 +229,7 @@ export default function HazardMap({ nodes, zones = [], filter, selectedNode, onS
   };
 
   return (
-    <MapContainer bounds={DELHI_BOUNDS} boundsOptions={{ padding: [24, 24] }} minZoom={9} maxZoom={18} maxBounds={DELHI_BOUNDS} maxBoundsViscosity={0.72} zoomControl={false} scrollWheelZoom doubleClickZoom boxZoom keyboard className={`leaflet-map map-${mapStyle}`}>
+    <MapContainer bounds={DELHI_BOUNDS} boundsOptions={{ padding: [24, 24] }} minZoom={9} maxZoom={18} maxBounds={MAP_PAN_BOUNDS} maxBoundsViscosity={0.28} zoomControl={false} scrollWheelZoom doubleClickZoom boxZoom keyboard className={`leaflet-map map-${mapStyle}`}>
       <TileLayer key={`${mapStyle}-base`} attribution={activeStyle.attribution} url={activeStyle.base} zIndex={200} />
       {labelsVisible && <TileLayer key={`${mapStyle}-labels`} attribution={activeStyle.attribution} url={activeStyle.labels} zIndex={350} />}
       {zonesVisible && zones.map((zone) => (
@@ -249,7 +251,7 @@ export default function HazardMap({ nodes, zones = [], filter, selectedNode, onS
       <Polygon positions={DELHI_BORDER} interactive={false} pathOptions={{ color: mapStyle === 'light' ? '#087c88' : '#54e4ed', weight: 2.4, opacity: 0.98, dashArray: '9 5', fillColor: '#32bac7', fillOpacity: mapStyle === 'earth' ? 0.045 : 0.02 }} />
       {visibleNodes.filter((node) => ['critical', 'high'].includes(nodeVisualStatus(node))).map((node) => {
         const visualStatus = nodeVisualStatus(node);
-        return <Circle key={`${node.id}-zone`} center={[node.lat, node.lng]} radius={visualStatus === 'critical' ? 4200 : 2800} pathOptions={{ color: statusColors[visualStatus], fillColor: statusColors[visualStatus], fillOpacity: hasDataFault(node) ? 0.15 : 0.09, opacity: 0.65, weight: 1.2, dashArray: hasDataFault(node) ? '7 6' : undefined }} />;
+        return <Circle key={`${node.id}-zone`} center={[node.lat, node.lng]} radius={visualStatus === 'critical' ? 4200 : 2800} pathOptions={{ color: statusColors[visualStatus], fillColor: statusColors[visualStatus], fillOpacity: hasDataFault(node) ? 0.36 : 0.09, opacity: hasDataFault(node) ? 0.92 : 0.65, weight: hasDataFault(node) ? 2.1 : 1.2 }} />;
       })}
       {visibleNodes.map((node) => (
         nodeVisualStatus(node) === 'safe' ? (

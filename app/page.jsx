@@ -187,40 +187,40 @@ const demoNodes = [
 
 const alerts = [
   {
-    id: 'INC-2048', node: 'YAM-01', level: 'critical', title: 'Yamuna level above danger mark',
-    location: 'Wazirabad Barrage · North Delhi', time: '2 min',
-    summary: 'Level has risen 18 cm in the last 30 minutes. Low-lying riverbank sectors require verification.',
-    metric: '207.1 m', confidence: 91, action: 'Notify North District EOC',
+    id: 'FLD-2401', node: 'RIV-WZR-11', level: 'critical', title: '24-hour river flood watch issued',
+    location: 'Wazirabad–Sonia Vihar riverbank · North Delhi', time: '2 min',
+    summary: 'Yamuna level is 207.3 m and rising with 39 mm/h rainfall upstream. Low-lying pockets near Wazirabad, Usmanpur and Sonia Vihar may see inundation within the next 24 hours.',
+    metric: '207.3 m', confidence: 94, action: 'Pre-position riverbank response teams and notify nearby ward control rooms.',
   },
   {
-    id: 'INC-2045', node: 'DRN-08', level: 'high', title: 'Rapid waterlogging detected',
-    location: 'Minto Bridge · Central Delhi', time: '7 min',
-    summary: 'Road-water sensor crossed 40 cm. Pump telemetry is active but inflow remains elevated.',
-    metric: '42 cm', confidence: 87, action: 'Dispatch traffic diversion unit',
+    id: 'FLD-2398', node: 'DRN-08', level: 'high', title: 'Waterlogging likely for next 6 hours',
+    location: 'Minto Bridge underpass · Central Delhi', time: '7 min',
+    summary: 'Road-water depth is 42 cm while rainfall remains at 28 mm/h. The underpass and approaches should remain restricted until drainage falls below the 20 cm clearance threshold.',
+    metric: '42 cm water depth', confidence: 91, action: 'Keep diversion in place; verify pump discharge every 30 minutes.',
   },
   {
-    id: 'INC-2041', node: 'AIR-14', level: 'high', title: 'Severe air-quality pocket',
-    location: 'Anand Vihar · East Delhi', time: '14 min',
-    summary: 'PM2.5 readings remain elevated across three adjacent monitors with low wind dispersion.',
-    metric: 'AQI 312', confidence: 78, action: 'Increase mobile monitoring',
+    id: 'AIR-2395', node: 'AQ-ANV-17', level: 'critical', title: 'Severe pollution pocket expected to persist',
+    location: 'Anand Vihar ISBT corridor · East Delhi', time: '14 min',
+    summary: 'AQI is 386 with PM2.5 at 231 µg/m³ and weak dispersion. Exposure risk is likely to remain severe across Anand Vihar, Kaushambi approach and nearby residential blocks for the next 12–24 hours.',
+    metric: 'AQI 386', confidence: 92, action: 'Issue health advisory and deploy mobile enforcement near the traffic corridor.',
   },
   {
-    id: 'INC-2036', node: 'DRN-22', level: 'moderate', title: 'Drain level trending upward',
-    location: 'Najafgarh · South West Delhi', time: '22 min',
-    summary: 'Catchment sensors indicate a steady rise. No immediate overflow predicted in the next hour.',
-    metric: '+9% / hr', confidence: 73, action: 'Continue enhanced watch',
+    id: 'IND-2390', node: 'GAS-JHM-04', level: 'high', title: 'Industrial gas plume above local threshold',
+    location: 'Jhilmil Industrial Area · Shahdara', time: '18 min',
+    summary: 'VOC, H₂S and SO₂ are elevated together at the industrial edge. Downwind exposure is possible around Jhilmil Metro and adjacent residential lanes until wind conditions improve.',
+    metric: 'VOC 712 ppb', confidence: 86, action: 'Send an inspection team and advise sensitive groups to limit outdoor activity.',
   },
   {
-    id: 'INC-2029', node: 'HEAT-06', level: 'moderate', title: 'Local heat-stress threshold',
-    location: 'Narela · North West Delhi', time: '35 min',
-    summary: 'Heat index is elevated around the industrial cluster. Exposure window is expected to persist.',
-    metric: '48°C HI', confidence: 71, action: 'Alert ward control room',
+    id: 'FIR-2387', node: 'FIR-RDG-03', level: 'high', title: 'Grass-fire spread conditions elevated',
+    location: 'Delhi Ridge · South Delhi', time: '26 min',
+    summary: 'Air temperature is 44.8°C, humidity is 19% and winds are 27 km/h. Dry vegetation can support rapid surface-fire spread over the next 24 hours.',
+    metric: '68% fire risk', confidence: 84, action: 'Place Ridge fire crews on standby and restrict ignition sources.',
   },
   {
-    id: 'INC-2021', node: 'WX-12', level: 'advisory', title: 'Gust front approaching',
-    location: 'Dwarka · South West Delhi', time: '48 min',
-    summary: 'Short-duration wind gusts may affect exposed structures. No severe-weather escalation yet.',
-    metric: '42 km/h', confidence: 66, action: 'Monitor for escalation',
+    id: 'HEAT-2382', node: 'HEAT-06', level: 'moderate', title: 'Heat-stress conditions at industrial cluster',
+    location: 'Narela Industrial Area · North West Delhi', time: '35 min',
+    summary: 'The heat index is 48°C around the industrial cluster. Outdoor worker exposure is likely to remain unsafe through the afternoon.',
+    metric: '48°C heat index', confidence: 79, action: 'Alert ward control room and recommend work-rest precautions.',
   },
 ];
 
@@ -231,16 +231,24 @@ const dataQualityLabels = {
   unreliable: 'Unreliable sensor signal',
 };
 
+const dataQualityOperationalImpact = (node) => {
+  if (node.hazard === 'Flood') return 'Flood and waterlogging estimates for nearby low-lying areas should be treated as degraded until a fresh packet arrives.';
+  if (node.hazard === 'Weather') return 'Rainfall-based flood forecasting for the surrounding catchment is running on paired-station estimates only.';
+  if (node.hazard === 'Water Quality') return 'Drain contamination assessment is incomplete; do not use this node for public-health clearance decisions.';
+  if (node.hazard === 'Industrial Pollution') return 'Use the paired air-quality monitor for enforcement decisions until this instrument is recalibrated.';
+  return 'Use nearby validated nodes until this device resumes normal reporting.';
+};
+
 const dataQualityAlerts = (nodes) => nodes
   .filter((node) => ['invalid', 'missing', 'stale', 'unreliable'].includes(node.dataQuality?.status))
   .map((node) => ({
     id: `DQ-${node.id}`,
     node: node.id,
     level: node.dataQuality.status === 'invalid' ? 'critical' : 'high',
-    title: `${dataQualityLabels[node.dataQuality.status]} · ${node.name}`,
+    title: `${dataQualityLabels[node.dataQuality.status]} — field check required`,
     location: `${node.area} · Delhi NCT`,
     time: node.updated,
-    summary: node.dataQuality.issue,
+    summary: `${node.dataQuality.issue} ${dataQualityOperationalImpact(node)}`,
     metric: node.dataQuality.status.toUpperCase(),
     confidence: node.dataQuality.status === 'invalid' ? 96 : 88,
     action: 'Dispatch field verification and use paired-node estimates until data is restored.',
@@ -594,7 +602,25 @@ function AlertItem({ alert, state, onAcknowledge, onLocate, nodes = demoNodes })
   );
 }
 
+const severityOrder = { critical: 0, high: 1, moderate: 2, advisory: 3 };
+
+function orderOperationalAlerts(alertsList, nodes) {
+  return [...alertsList].sort((left, right) => {
+    const leftNode = nodes.find((node) => node.id === left.node);
+    const rightNode = nodes.find((node) => node.id === right.node);
+    const group = (alert, node) => {
+      if (!alert.dataQuality && node?.hazard === 'Flood') return 0;
+      if (alert.dataQuality) return 1;
+      return 2;
+    };
+    const groupDifference = group(left, leftNode) - group(right, rightNode);
+    if (groupDifference) return groupDifference;
+    return (severityOrder[left.level] ?? 9) - (severityOrder[right.level] ?? 9);
+  });
+}
+
 function AlertRail({ states, onAcknowledge, onLocate, alertsData, nodes, firebaseStatus }) {
+  const orderedAlerts = orderOperationalAlerts(alertsData, nodes);
   return (
     <aside className="alert-rail" aria-label="Delhi active alerts">
       <header className="alert-rail-header">
@@ -607,9 +633,9 @@ function AlertRail({ states, onAcknowledge, onLocate, alertsData, nodes, firebas
         <div><span>Highest risk</span><strong className="critical-text">{Math.max(0, ...alertsData.map((alert) => Number(alert.confidence) || 0))}%</strong></div>
       </div>
       <SeasonalWarningTicker nodes={nodes} />
-      <div className="queue-heading"><div><span>PRIORITY QUEUE</span><b>Newest first</b></div><button aria-label="Filter alerts">All <ChevronRight size={12} /></button></div>
+      <div className="queue-heading"><div><span>PRIORITY QUEUE</span><b>Flood watch first</b></div><button aria-label="Filter alerts">All <ChevronRight size={12} /></button></div>
       <div className="incident-feed">
-        {alertsData.map((alert) => <AlertItem key={alert.id} alert={alert} state={states[alert.id]} onAcknowledge={onAcknowledge} onLocate={onLocate} nodes={nodes} />)}
+        {orderedAlerts.map((alert) => <AlertItem key={alert.id} alert={alert} state={states[alert.id]} onAcknowledge={onAcknowledge} onLocate={onLocate} nodes={nodes} />)}
       </div>
     </aside>
   );
