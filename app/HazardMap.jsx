@@ -8,6 +8,7 @@ import { Check, ChevronLeft, ChevronRight, CloudFog, CloudRain, Factory, Flame, 
 import 'leaflet/dist/leaflet.css';
 
 const statusColors = { safe: '#16805d', moderate: '#d49614', high: '#e46e2e', critical: '#cf3741' };
+const dataFaultStates = new Set(['invalid', 'missing', 'stale', 'unreliable']);
 const mapHazardIcons = {
   flood: Waves,
   fire: Flame,
@@ -110,12 +111,21 @@ function getHazardIcon(hazard = '') {
   return mapHazardIcons[normalized] || CloudRain;
 }
 
+function hasDataFault(node) {
+  return dataFaultStates.has(String(node?.dataQuality?.status || '').toLowerCase());
+}
+
+function nodeVisualStatus(node) {
+  return hasDataFault(node) ? 'critical' : (node.status || 'safe');
+}
+
 function createNodeIcon(node, selected) {
   const Icon = getHazardIcon(node.hazard);
   const svg = renderToStaticMarkup(<Icon size={17} strokeWidth={2.35} aria-hidden="true" />);
-  const color = statusColors[node.status] || statusColors.safe;
+  const visualStatus = nodeVisualStatus(node);
+  const color = statusColors[visualStatus] || statusColors.safe;
   return L.divIcon({
-    className: `hazard-node-marker ${node.status || 'safe'} ${selected ? 'selected' : ''}`,
+    className: `hazard-node-marker ${visualStatus} ${hasDataFault(node) ? 'data-quality-fault' : ''} ${selected ? 'selected' : ''}`,
     html: `<span class="hazard-node-pin" style="--node-color:${color}">${svg}</span>`,
     iconSize: [40, 44],
     iconAnchor: [20, 42],
@@ -237,17 +247,18 @@ export default function HazardMap({ nodes, zones = [], filter, selectedNode, onS
       ))}
       <Polygon positions={DELHI_BORDER} interactive={false} pathOptions={{ color: mapStyle === 'light' ? '#ffffff' : '#071016', weight: 7, opacity: mapStyle === 'earth' ? 0.82 : 0.62, fillColor: '#32bac7', fillOpacity: 0.025 }} />
       <Polygon positions={DELHI_BORDER} interactive={false} pathOptions={{ color: mapStyle === 'light' ? '#087c88' : '#54e4ed', weight: 2.4, opacity: 0.98, dashArray: '9 5', fillColor: '#32bac7', fillOpacity: mapStyle === 'earth' ? 0.045 : 0.02 }} />
-      {visibleNodes.filter((node) => ['critical', 'high'].includes(node.status)).map((node) => (
-        <Circle key={`${node.id}-zone`} center={[node.lat, node.lng]} radius={node.status === 'critical' ? 4200 : 2800} pathOptions={{ color: statusColors[node.status], fillColor: statusColors[node.status], fillOpacity: 0.09, opacity: 0.65, weight: 1.2 }} />
-      ))}
+      {visibleNodes.filter((node) => ['critical', 'high'].includes(nodeVisualStatus(node))).map((node) => {
+        const visualStatus = nodeVisualStatus(node);
+        return <Circle key={`${node.id}-zone`} center={[node.lat, node.lng]} radius={visualStatus === 'critical' ? 4200 : 2800} pathOptions={{ color: statusColors[visualStatus], fillColor: statusColors[visualStatus], fillOpacity: hasDataFault(node) ? 0.15 : 0.09, opacity: 0.65, weight: 1.2, dashArray: hasDataFault(node) ? '7 6' : undefined }} />;
+      })}
       {visibleNodes.map((node) => (
-        node.status === 'safe' ? (
+        nodeVisualStatus(node) === 'safe' ? (
           <CircleMarker key={node.id} center={[node.lat, node.lng]} radius={selectedNode?.id === node.id ? 8 : 5.5} eventHandlers={{ click: () => onSelect(node) }} pathOptions={{ color: '#ffffff', weight: selectedNode?.id === node.id ? 3 : 2, fillColor: statusColors.safe, fillOpacity: 1 }}>
             <Tooltip direction="top" offset={[0, -7]} opacity={1}><div className="map-tooltip"><b>{node.name}</b><span>{node.id} · {node.area}</span><em>Normal · {node.hazard} monitoring</em></div></Tooltip>
           </CircleMarker>
         ) : (
           <Marker key={node.id} position={[node.lat, node.lng]} icon={createNodeIcon(node, selectedNode?.id === node.id)} eventHandlers={{ click: () => onSelect(node) }}>
-            <Tooltip direction="top" opacity={1}><div className="map-tooltip"><b>{node.name}</b><span>{node.id} · {node.area}</span><em>{node.risk}% {node.hazard} risk</em></div></Tooltip>
+            <Tooltip direction="top" opacity={1}><div className="map-tooltip"><b>{node.name}</b><span>{node.id} · {node.area}</span><em>{hasDataFault(node) ? `DATA FAULT · ${node.dataQuality.status.toUpperCase()}` : `${node.risk}% ${node.hazard} risk`}</em></div></Tooltip>
           </Marker>
         )
       ))}

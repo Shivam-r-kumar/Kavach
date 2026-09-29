@@ -121,6 +121,70 @@ const delhiNodes = [
   },
 ];
 
+const demoNodes = [
+  ...delhiNodes,
+  {
+    id: 'GAS-OKH-09', name: 'Okhla Industrial Gas Watch', area: 'South East Delhi', hazard: 'Industrial Pollution', status: 'critical',
+    lat: 28.5352, lng: 77.2797, risk: 94, updated: '1 min ago', zone: 'ZONE-6',
+    sensors: ['VOC', 'CO', 'NO2', 'SO2', 'PM2.5'], readings: { VOC: '985 ppb', CO: '18.4 ppm', NO2: '196 µg/m³', 'PM2.5': '241 µg/m³' },
+    dataQuality: { status: 'invalid', issue: 'VOC channels disagree by 43%; calibration check required.', lastValid: '17 min ago' },
+  },
+  {
+    id: 'RAIN-DWK-02', name: 'Dwarka Rain Gauge', area: 'South West Delhi', hazard: 'Weather', status: 'high',
+    lat: 28.5728, lng: 77.0536, risk: 72, updated: '19 min ago', zone: 'ZONE-2',
+    sensors: ['Rainfall', 'Pressure', 'Wind speed', 'Humidity'], readings: { Rainfall: '—', Pressure: '996 hPa', 'Wind speed': '34 km/h', Humidity: '88%' },
+    dataQuality: { status: 'missing', issue: 'Rain gauge payload missing for three consecutive reporting windows.', lastValid: '19 min ago' },
+  },
+  {
+    id: 'SOIL-NAJ-05', name: 'Najafgarh Floodplain Soil Node', area: 'South West Delhi', hazard: 'Flood', status: 'high',
+    lat: 28.5927, lng: 76.9901, risk: 76, updated: '23 min ago', zone: 'ZONE-2',
+    sensors: ['Soil moisture', 'Rainfall', 'Water level'], readings: { 'Soil moisture': '98%', Rainfall: '42 mm/h', 'Water level': '1.82 m' },
+    dataQuality: { status: 'stale', issue: 'Soil probe packet is 23 minutes old during active rainfall.', lastValid: '23 min ago' },
+  },
+  {
+    id: 'RIV-WZR-11', name: 'Wazirabad River Gauge', area: 'North Delhi', hazard: 'Flood', status: 'critical',
+    lat: 28.7114, lng: 77.2257, risk: 92, updated: '12 sec ago', zone: 'ZONE-4',
+    sensors: ['Water level', 'Flow rate', 'Rainfall', 'Turbidity'], readings: { 'Water level': '207.3 m', 'Flow rate': '8.8 k m³/s', Rainfall: '39 mm/h', Turbidity: '286 NTU' },
+    dataQuality: { status: 'valid', issue: 'Validated by paired river gauge.', lastValid: '12 sec ago' },
+  },
+  {
+    id: 'AQ-ANV-17', name: 'Anand Vihar Traffic Air Node', area: 'East Delhi', hazard: 'Air Quality', status: 'critical',
+    lat: 28.6476, lng: 77.3145, risk: 89, updated: '22 sec ago', zone: 'ZONE-4',
+    sensors: ['PM2.5', 'PM10', 'NO2', 'CO', 'Noise'], readings: { AQI: '386', 'PM2.5': '231 µg/m³', PM10: '412 µg/m³', NO2: '174 µg/m³' },
+    dataQuality: { status: 'valid', issue: 'Cross-checked with roadside reference monitor.', lastValid: '22 sec ago' },
+  },
+  {
+    id: 'GAS-JHM-04', name: 'Jhilmil Industrial Gas Node', area: 'Shahdara', hazard: 'Industrial Pollution', status: 'high',
+    lat: 28.6738, lng: 77.3112, risk: 81, updated: '34 sec ago', zone: 'ZONE-4',
+    sensors: ['VOC', 'H2S', 'NH3', 'SO2', 'PM10'], readings: { VOC: '712 ppb', H2S: '19 ppm', NH3: '11 ppm', SO2: '96 µg/m³' },
+    dataQuality: { status: 'valid', issue: 'Reference drift within tolerance.', lastValid: '34 sec ago' },
+  },
+  {
+    id: 'WTR-SHD-07', name: 'Shahdara Drain Quality Node', area: 'Shahdara', hazard: 'Water Quality', status: 'high',
+    lat: 28.6592, lng: 77.2891, risk: 84, updated: '8 min ago', zone: 'ZONE-4',
+    sensors: ['pH', 'Turbidity', 'Conductivity', 'H2S', 'NH3'], readings: { pH: '14.7', Turbidity: '—', Conductivity: '4.8 mS/cm', H2S: '21 ppm' },
+    dataQuality: { status: 'invalid', issue: 'pH reading is outside sensor range and turbidity channel is unavailable.', lastValid: '8 min ago' },
+  },
+  {
+    id: 'FIR-RDG-03', name: 'Delhi Ridge Fire Node', area: 'South Delhi', hazard: 'Fire', status: 'high',
+    lat: 28.5061, lng: 77.1764, risk: 68, updated: '46 sec ago', zone: 'ZONE-5',
+    sensors: ['Air temperature', 'Humidity', 'Wind speed', 'PM2.5'], readings: { 'Air temperature': '44.8°C', Humidity: '19%', 'Wind speed': '27 km/h', 'PM2.5': '142 µg/m³' },
+    dataQuality: { status: 'valid', issue: 'Optical smoke channel clear.', lastValid: '46 sec ago' },
+  },
+  {
+    id: 'DUST-BWN-08', name: 'Bawana Dust Corridor Node', area: 'North West Delhi', hazard: 'Dust', status: 'moderate',
+    lat: 28.7994, lng: 77.0331, risk: 58, updated: '31 sec ago', zone: 'ZONE-1',
+    sensors: ['PM10', 'PM2.5', 'Wind speed', 'Humidity'], readings: { PM10: '294 µg/m³', 'PM2.5': '126 µg/m³', 'Wind speed': '24 km/h', Humidity: '33%' },
+    dataQuality: { status: 'valid', issue: 'Consistent with transport-corridor baseline.', lastValid: '31 sec ago' },
+  },
+  {
+    id: 'MET-CP-06', name: 'Central Delhi Micro Weather', area: 'New Delhi', hazard: 'Weather', status: 'moderate',
+    lat: 28.6306, lng: 77.2182, risk: 47, updated: '28 sec ago', zone: 'ZONE-3',
+    sensors: ['Rainfall', 'Pressure', 'Air temperature', 'Humidity', 'Wind speed'], readings: { Rainfall: '14 mm/h', Pressure: '998 hPa', 'Air temperature': '31.4°C', Humidity: '83%' },
+    dataQuality: { status: 'valid', issue: 'All weather channels reporting.', lastValid: '28 sec ago' },
+  },
+];
+
 const alerts = [
   {
     id: 'INC-2048', node: 'YAM-01', level: 'critical', title: 'Yamuna level above danger mark',
@@ -159,6 +223,36 @@ const alerts = [
     metric: '42 km/h', confidence: 66, action: 'Monitor for escalation',
   },
 ];
+
+const dataQualityLabels = {
+  invalid: 'Invalid sensor data',
+  missing: 'Sensor data missing',
+  stale: 'Stale sensor transmission',
+  unreliable: 'Unreliable sensor signal',
+};
+
+const dataQualityAlerts = (nodes) => nodes
+  .filter((node) => ['invalid', 'missing', 'stale', 'unreliable'].includes(node.dataQuality?.status))
+  .map((node) => ({
+    id: `DQ-${node.id}`,
+    node: node.id,
+    level: node.dataQuality.status === 'invalid' ? 'critical' : 'high',
+    title: `${dataQualityLabels[node.dataQuality.status]} · ${node.name}`,
+    location: `${node.area} · Delhi NCT`,
+    time: node.updated,
+    summary: node.dataQuality.issue,
+    metric: node.dataQuality.status.toUpperCase(),
+    confidence: node.dataQuality.status === 'invalid' ? 96 : 88,
+    action: 'Dispatch field verification and use paired-node estimates until data is restored.',
+    dataQuality: true,
+  }));
+
+const mergeAlertsWithDataQuality = (sourceAlerts, nodes) => {
+  const source = Array.isArray(sourceAlerts) ? sourceAlerts : [];
+  const qualityAlerts = dataQualityAlerts(nodes);
+  const sourceIds = new Set(source.map((alert) => alert.id));
+  return [...qualityAlerts.filter((alert) => !sourceIds.has(alert.id)), ...source];
+};
 
 const fallbackAnalytics = {
   riskTrend: [42, 51, 47, 62, 72, 91, 78, 69, 58, 63, 55, 49],
@@ -475,12 +569,13 @@ function SelectedNode({ node, onClose }) {
       <div className="node-readings">
         {Object.entries(node.readings).map(([label, value]) => <div key={label}><span>{label}</span><b>{value}</b></div>)}
       </div>
+      {node.dataQuality && node.dataQuality.status !== 'valid' && <div className="node-data-fault"><AlertTriangle size={14} /><span><b>DATA {node.dataQuality.status.toUpperCase()}</b>{node.dataQuality.issue}</span></div>}
       <div className="node-risk"><Icon size={16} /><span>{node.hazard} risk</span><strong>{node.risk}%</strong><small>Updated {node.updated}</small></div>
     </aside>
   );
 }
 
-function AlertItem({ alert, state, onAcknowledge, onLocate, nodes = delhiNodes }) {
+function AlertItem({ alert, state, onAcknowledge, onLocate, nodes = demoNodes }) {
   const node = nodes.find((item) => item.id === alert.node);
   const Icon = hazardIcons[node?.hazard] || AlertTriangle;
   return (
@@ -499,17 +594,17 @@ function AlertItem({ alert, state, onAcknowledge, onLocate, nodes = delhiNodes }
   );
 }
 
-function AlertRail({ states, onAcknowledge, onLocate, alertsData, nodes }) {
+function AlertRail({ states, onAcknowledge, onLocate, alertsData, nodes, firebaseStatus }) {
   return (
     <aside className="alert-rail" aria-label="Delhi active alerts">
       <header className="alert-rail-header">
         <div className="jurisdiction"><span>DELHI / NCT</span><b>Command Centre</b></div>
-        <div className="feed-state"><i />Simulated feed</div>
+        <div className="feed-state"><i />{firebaseStatus === 'connected' ? 'Firebase live' : 'Demo data'}</div>
       </header>
       <div className="alert-summary">
         <div><span>Active incidents</span><strong>{String(alertsData.length).padStart(2, '0')}</strong></div>
         <div><span>Unacknowledged</span><strong>{alertsData.filter((alert) => !states[alert.id]).length}</strong></div>
-        <div><span>Highest risk</span><strong className="critical-text">91%</strong></div>
+        <div><span>Highest risk</span><strong className="critical-text">{Math.max(0, ...alertsData.map((alert) => Number(alert.confidence) || 0))}%</strong></div>
       </div>
       <SeasonalWarningTicker nodes={nodes} />
       <div className="queue-heading"><div><span>PRIORITY QUEUE</span><b>Newest first</b></div><button aria-label="Filter alerts">All <ChevronRight size={12} /></button></div>
@@ -520,17 +615,17 @@ function AlertRail({ states, onAcknowledge, onLocate, alertsData, nodes }) {
   );
 }
 
-function MapCanvas({ title, filter, setFilter, selectedNode, setSelectedNode, nodes, zones, alertsData }) {
+function MapCanvas({ title, filter, setFilter, selectedNode, setSelectedNode, nodes, zones, alertsData, firebaseStatus }) {
   const hazardFilters = ['All', ...new Set(nodes.map((node) => node.hazard))];
   return (
     <section className="map-canvas" aria-label={`Delhi ${title} map`}>
       <HazardMap nodes={nodes} zones={zones} filter={filter} selectedNode={selectedNode} onSelect={setSelectedNode} />
       <div className="map-identity"><div className="delhi-seal"><ShieldCheck size={18} /></div><div><span>KAVACH · DELHI</span><h1>{title}</h1></div></div>
-      <div className="map-status"><span><i />{String(nodes.length).padStart(2, '0')} nodes deployed</span><b>10 DISTRICTS</b><b>{String(alertsData.length).padStart(2, '0')} ACTIVE ALERTS</b><b>FIREBASE LIVE</b></div>
+      <div className="map-status"><span><i />{String(nodes.length).padStart(2, '0')} nodes deployed</span><b>10 DISTRICTS</b><b>{String(alertsData.length).padStart(2, '0')} ACTIVE ALERTS</b><b>{firebaseStatus === 'connected' ? 'FIREBASE LIVE' : 'DEMO FALLBACK'}</b></div>
       <div className="map-filters" role="group" aria-label="Filter map hazards">
         {hazardFilters.map((item) => <button key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}</button>)}
       </div>
-      <div className="map-legend" aria-label="Map severity legend"><span><i className="safe" />Normal</span><span><i className="moderate" />Moderate</span><span><i className="high" />High</span><span><i className="critical" />Critical</span></div>
+      <div className="map-legend" aria-label="Map severity legend"><span><i className="safe" />Normal</span><span><i className="moderate" />Moderate</span><span><i className="high" />High</span><span><i className="critical" />Critical / data fault</span></div>
       <SelectedNode node={selectedNode} onClose={() => setSelectedNode(null)} />
     </section>
   );
@@ -784,14 +879,14 @@ export default function Home() {
   const [acknowledged, setAcknowledged] = useState({});
   const [activeView, setActiveView] = useState('Command Centre');
   const [theme, setTheme] = useState('dark');
-  const [nodes, setNodes] = useState([]);
-  const [alertsData, setAlertsData] = useState([]);
+  const [nodes, setNodes] = useState(demoNodes);
+  const [alertsData, setAlertsData] = useState(() => mergeAlertsWithDataQuality(alerts, demoNodes));
   const [analyticsData, setAnalyticsData] = useState(fallbackAnalytics);
   const [reportsData, setReportsData] = useState(fallbackReports);
   const [settingsData, setSettingsData] = useState(fallbackSettings);
   const [seasonMode, setSeasonMode] = useState('auto');
   const [zones, setZones] = useState(fallbackZones);
-  const [firebaseStatus, setFirebaseStatus] = useState('connecting');
+  const [firebaseStatus, setFirebaseStatus] = useState('demo');
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem('kavach-theme');
@@ -806,9 +901,11 @@ export default function Home() {
       try {
         const data = await firebaseRequest('');
         if (!mounted) return;
-        if (!data) { setNodes([]); setAlertsData([]); setAcknowledged({}); setFirebaseStatus('empty'); return; }
-        const nextNodes = toCollection(data.devices, []);
-        const nextAlerts = toAlertCollection(data.alerts, []);
+        if (!data) { setNodes(demoNodes); setAlertsData(mergeAlertsWithDataQuality(alerts, demoNodes)); setAcknowledged({}); setFirebaseStatus('demo'); return; }
+        const firebaseNodes = toCollection(data.devices, []);
+        const nextNodes = firebaseNodes.length ? firebaseNodes : demoNodes;
+        const firebaseAlerts = toAlertCollection(data.alerts, []);
+        const nextAlerts = mergeAlertsWithDataQuality(firebaseAlerts.length ? firebaseAlerts : (firebaseNodes.length ? [] : alerts), nextNodes);
         setNodes(nextNodes);
         setAlertsData(nextAlerts);
         setAnalyticsData(data.analytics || fallbackAnalytics);
@@ -818,7 +915,13 @@ export default function Home() {
         setZones(toCollection(data.zones, fallbackZones));
         setAcknowledged(Object.fromEntries(nextAlerts.filter((alert) => alert.acknowledged).map((alert) => [alert.id, true])));
         setFirebaseStatus('connected');
-      } catch { if (mounted) setFirebaseStatus('error'); }
+      } catch {
+        if (!mounted) return;
+        setNodes(demoNodes);
+        setAlertsData(mergeAlertsWithDataQuality(alerts, demoNodes));
+        setAcknowledged({});
+        setFirebaseStatus('demo');
+      }
     };
     loadData();
     const timer = window.setInterval(loadData, 10000);
@@ -833,7 +936,7 @@ export default function Home() {
       try {
         const message = JSON.parse(event.data);
         alertSnapshot = applyFirebaseStreamUpdate(alertSnapshot, message.path || '/', message.data, eventType);
-        const nextAlerts = toAlertCollection(alertSnapshot, []);
+        const nextAlerts = mergeAlertsWithDataQuality(toAlertCollection(alertSnapshot, []), nodes);
         setAlertsData(nextAlerts);
         setAcknowledged(Object.fromEntries(nextAlerts.filter((alert) => alert.acknowledged).map((alert) => [alert.id, true])));
         setFirebaseStatus('connected');
@@ -842,7 +945,7 @@ export default function Home() {
     stream.addEventListener('put', receiveUpdate('put'));
     stream.addEventListener('patch', receiveUpdate('patch'));
     stream.onopen = () => setFirebaseStatus('connected');
-    stream.onerror = () => setFirebaseStatus('connecting');
+    stream.onerror = () => setFirebaseStatus((current) => current === 'connected' ? 'connecting' : 'demo');
     return () => stream.close();
   }, []);
 
@@ -861,6 +964,7 @@ export default function Home() {
     const firebaseKey = alertsData.find((alert) => alert.id === id)?.firebaseKey || id;
     setAcknowledged((current) => ({ ...current, [id]: nextValue }));
     setAlertsData((current) => current.map((alert) => alert.id === id ? { ...alert, acknowledged: nextValue } : alert));
+    if (firebaseStatus !== 'connected') return;
     try { await firebaseRequest(`alerts/${encodeURIComponent(firebaseKey)}/acknowledged`, { method: 'PUT', body: JSON.stringify(nextValue) }); }
     catch { setFirebaseStatus('error'); }
   };
@@ -908,8 +1012,8 @@ export default function Home() {
   return (
     <main className={`command-shell theme-${theme}`}>
       <NavigationRail activeView={activeView} setActiveView={setActiveView} theme={theme} setTheme={setTheme} firebaseStatus={firebaseStatus} alertCount={alertsData.length} />
-      {activeView === 'Command Centre' && <><MapCanvas title="Command Centre" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} zones={zones} alertsData={alertsData} /><AlertRail states={acknowledged} onAcknowledge={onAcknowledge} onLocate={locateNode} alertsData={alertsData} nodes={nodes} /></>}
-      {activeView === 'Live Map' && <><MapCanvas title="Live Map" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} zones={zones} alertsData={alertsData} /><NodeRail selectedNode={selectedNode} onSelect={setSelectedNode} nodes={nodes} /></>}
+      {activeView === 'Command Centre' && <><MapCanvas title="Command Centre" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} zones={zones} alertsData={alertsData} firebaseStatus={firebaseStatus} /><AlertRail states={acknowledged} onAcknowledge={onAcknowledge} onLocate={locateNode} alertsData={alertsData} nodes={nodes} firebaseStatus={firebaseStatus} /></>}
+      {activeView === 'Live Map' && <><MapCanvas title="Live Map" filter={filter} setFilter={setFilter} selectedNode={selectedNode} setSelectedNode={setSelectedNode} nodes={nodes} zones={zones} alertsData={alertsData} firebaseStatus={firebaseStatus} /><NodeRail selectedNode={selectedNode} onSelect={setSelectedNode} nodes={nodes} /></>}
       {!['Command Centre', 'Live Map'].includes(activeView) && renderModule()}
     </main>
   );
